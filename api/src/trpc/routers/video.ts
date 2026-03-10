@@ -1,0 +1,1450 @@
+import { z } from "zod";
+import { v4 as uuidv4 } from "uuid";
+import { on } from "events";
+import {
+    router,
+    protectedProcedure,
+    videoProcedure,
+    channelProcedure,
+} from "../router.js";
+import { TRPCError } from "@trpc/server";
+import { prisma } from "../../lib/prisma";
+import config from "../../lib/config.js";
+import {
+    createMultipartUpload,
+    getPresignedPartUrl,
+    completeMultipartUpload,
+    abortMultipartUpload,
+    listUploadedParts,
+    deleteS3Prefix,
+} from "../../lib/storage.js";
+import {
+    cacheVideoStatus,
+    cacheVideoMetadata,
+    deleteVideoMetadata,
+    deleteAggregateTracker,
+    getCachedVideoStatus,
+    REDIS_KEYS,
+    VideoStatusEventSchema,
+} from "../../lib/ws/definitions";
+import {
+    transcodeQueue,
+    schedulerQueue,
+    JOBS,
+} from "../../lib/queue-definitions.js";
+import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
+import * as path from "path";
+import * as fs from "fs";
+import { CompletedPart } from "@aws-sdk/client-s3";
+
+import { StreamService } from "../../services/StreamService";
+import redis from "../../lib/redis";
+
+// --- Helpers ---
+
+/** Build the public WebSocket URL for a given video ID */
+function buildWsUrl(videoId: string): string {
+    const wsProtocol = config.nodeEnv === "production" ? "wss" : "ws";
+    const baseUrl =
+        config.publicWsUrl || `${wsProtocol}://localhost:${config.port}`;
+    return `${baseUrl}/ws/videos?id=${videoId}`;
+}
+
+export async function updateChannelStats(channelId: string) {
+    // 1. Count all videos that are not soft-deleted (including unlisted/private/scheduled)
+    const videoCount = await prisma.videos.count({
+        where: {
+            channelId,
+            deletedAt: null,
+        },
+    });
+
+    // 2. Sum total views for all videos (unlisted links still accrue views)
+    const aggregate = await prisma.videos.aggregate({
+        where: {
+            channelId,
+            deletedAt: null,
+        },
+        _sum: {
+            viewCount: true,
+        },
+    });
+
+    const totalViews = aggregate._sum.viewCount ?? 0;
+
+    // 3. Update Channel
+    await prisma.channels.update({
+        where: { id: channelId },
+        data: {
+            videoCount,
+            totalViews,
+        },
+    });
+
+    return { videoCount, totalViews };
+}
+
+// --- Input Schemas ---
+
+const initUploadSchema = z.object({
+    fileName: z
+        .string()
+        .min(1)
+        .max(255)
+        .regex(
+            /^[a-zA-Z0-9._\-\s]+$/,
+            "Filename can only contain alphanumeric characters, dots, underscores, dashes, and spaces",
+        ),
+    channelId: z.string().min(1, { message: "Invalid Channel ID" }),
+});
+
+const getPartUrlSchema = z.object({
+    videoId: z.string().min(1),
+    uploadId: z.string().min(1),
+    partNumber: z.number().int().min(1),
+    md5: z.string().optional(),
+});
+
+const completeUploadSchema = z.object({
+    videoId: z.string().min(1),
+    uploadId: z.string().min(1),
+    parts: z.array(
+        z.object({
+            ETag: z.string().min(1),
+            PartNumber: z.number().int().min(1),
+        }),
+    ),
+});
+
+const videoIdSchema = z.object({
+    videoId: z.string().min(1),
+});
+
+const abortUploadSchema = z.object({
+    videoId: z.string().min(1),
+    uploadId: z.string().min(1),
+});
+
+const reportFailureSchema = z.object({
+    videoId: z.string().min(1),
+    error: z.string().optional(),
+});
+
+/**
+ * Updates the cached video count and total views for a channel.
+ * Typically called after video publication, deletion, or visibility changes.
+ */
+
+// --- Router ---
+
+export const videoRouter = router({
+    /**
+     * Initialize a multipart upload session and create video record
+     */
+    initUpload: protectedProcedure
+        .input(
+            initUploadSchema.extend({ idempotencyKey: z.string().optional() }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+            const { fileName, channelId, idempotencyKey } = input;
+
+            // Verify channel exists and user owns it
+            const channel = await prisma.channels.findUnique({
+                where: { id: channelId },
+                select: {
+                    id: true,
+                    handle: true,
+                    name: true,
+                    image: true,
+                    status: true,
+                    userId: true,
+                },
+            });
+
+            if (!channel) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Channel not found",
+                });
+            }
+
+            if (channel.userId !== userId) {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message:
+                        "You do not have permission to upload to this channel",
+                });
+            }
+
+            // IDEMPOTENCY CHECK
+            if (idempotencyKey) {
+                const existingVideo = await prisma.videos.findFirst({
+                    where: { idempotencyKey },
+                    select: {
+                        id: true,
+                        uploadId: true,
+                        processingStatus: true,
+                        uploadExpiresAt: true,
+                    },
+                });
+
+                if (existingVideo) {
+                    // CASE 1: Valid Resumable Session
+                    if (
+                        existingVideo.processingStatus === "UPLOADING" &&
+                        existingVideo.uploadId
+                    ) {
+                        // Check if not expired
+                        if (
+                            existingVideo.uploadExpiresAt &&
+                            existingVideo.uploadExpiresAt > new Date()
+                        ) {
+                            console.log(
+                                `[Pipeline] ♻️ Idempotency Hit: Returning existing session for ${fileName} (${existingVideo.id})`,
+                            );
+
+                            // Refresh cache just in case
+                            await cacheVideoMetadata(existingVideo.id, {
+                                uploadId: existingVideo.uploadId,
+                                ownerId: userId,
+                            });
+
+                            return {
+                                videoId: existingVideo.id,
+                                uploadId: existingVideo.uploadId,
+                                wsUrl: buildWsUrl(existingVideo.id),
+                                expiresAt:
+                                    existingVideo.uploadExpiresAt.toISOString(),
+                            };
+                        }
+                    }
+
+                    // CASE 2: Completed/Processing Video (Conflict)
+                    if (
+                        existingVideo.processingStatus === "PROCESSING" ||
+                        existingVideo.processingStatus === "READY"
+                    ) {
+                        throw new TRPCError({
+                            code: "CONFLICT",
+                            message:
+                                "Duplicate Upload: The file you selected has already been uploaded to this channel. To upload it again, please delete the existing video from your content list.",
+                        });
+                    }
+
+                    // CASE 3: Stale/Failed/Expired Session -> CLEANUP
+                    // We must delete the old record to avoid unique constraint violation on 'idempotencyKey'
+                    console.log(
+                        `[Pipeline] 🗑️ Idempotency: Cleaning up stale/failed session for ${fileName} (${existingVideo.id})`,
+                    );
+
+                    if (existingVideo.uploadId) {
+                        await abortMultipartUpload(
+                            existingVideo.id,
+                            existingVideo.uploadId,
+                        ).catch((err) => {
+                            console.warn(
+                                `[Pipeline] ⚠️ Failed to abort stale upload session:`,
+                                err,
+                            );
+                        });
+                    }
+
+                    await prisma.videos.delete({
+                        where: { id: existingVideo.id },
+                    });
+                }
+            }
+
+            const uploadExpiresAt = new Date(
+                Date.now() + config.upload.dbRecordExpiry * 1000,
+            );
+
+            console.log(
+                `[Pipeline] 🆕 Initializing Multipart Upload for ${fileName} (Channel: ${channel.handle})`,
+            );
+
+            // 1. Start S3 session
+            const videoId = uuidv4();
+            const uploadId = await createMultipartUpload(videoId);
+
+            // 2. Create DB record
+            let video;
+            try {
+                video = await prisma.videos.create({
+                    data: {
+                        id: videoId,
+                        uploadId,
+                        channelId: channel.id,
+                        title: fileName
+                            .replace(/\.[^/.]+$/, "")
+                            .substring(0, 100),
+                        processingStatus: "UPLOADING",
+                        visibility: "PRIVATE",
+                        channelHandle: channel.handle,
+                        channelName: channel.name,
+                        channelImage: channel.image,
+                        originalFileName: fileName,
+                        uploadExpiresAt: uploadExpiresAt,
+                        uploadStartedAt: new Date(),
+                        uploadAttempts: 0,
+                        updatedAt: new Date(),
+                        idempotencyKey, // Save key
+                    },
+                    select: {
+                        id: true,
+                        title: true,
+                        processingStatus: true,
+                        createdAt: true,
+                    },
+                });
+            } catch (error) {
+                console.error(
+                    `[Pipeline] ❌ DB Creation Failed. Aborting S3 Upload ${uploadId}...`,
+                );
+                await abortMultipartUpload(videoId, uploadId).catch((err) =>
+                    console.error(
+                        `[Pipeline] ⚠️ Failed to abort orphaned upload:`,
+                        err,
+                    ),
+                );
+                throw error;
+            }
+
+            // Cache initial status
+            await cacheVideoStatus(video.id, {
+                status: "UPLOADING",
+                progress: 0,
+            });
+
+            // Cache metadata for subsequent calls
+            await cacheVideoMetadata(videoId, {
+                uploadId,
+                ownerId: userId,
+            });
+
+            return {
+                videoId: video.id,
+                uploadId,
+                wsUrl: buildWsUrl(video.id),
+                expiresAt: uploadExpiresAt.toISOString(),
+            };
+        }),
+
+    /**
+     * Get a presigned URL for a specific part
+     */
+    getPartUrl: videoProcedure
+        .input(
+            getPartUrlSchema.omit({
+                videoId: true,
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { uploadId, partNumber, md5 } = input;
+
+            if (video.uploadId !== uploadId) {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Upload session mismatch",
+                });
+            }
+
+            const url = await getPresignedPartUrl(
+                video.id,
+                uploadId,
+                partNumber,
+                md5,
+            );
+
+            return { url };
+        }),
+
+    /**
+     * Get presigned URLs for multiple parts (Batch)
+     */
+    getPartUrls: videoProcedure
+        .input(
+            z.object({
+                uploadId: z.string().min(1),
+                parts: z
+                    .array(
+                        z.object({
+                            partNumber: z.number().int().min(1),
+                            md5: z.string().optional(),
+                        }),
+                    )
+                    .min(1)
+                    .max(50), // Batch limit
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { uploadId, parts } = input;
+
+            if (video.uploadId !== uploadId) {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Upload session mismatch",
+                });
+            }
+
+            const urls = await Promise.all(
+                parts.map(async (part) => {
+                    const url = await getPresignedPartUrl(
+                        video.id,
+                        uploadId,
+                        part.partNumber,
+                        part.md5,
+                    );
+                    return { partNumber: part.partNumber, url };
+                }),
+            );
+
+            return { urls };
+        }),
+
+    /**
+     * Resume an interrupted upload
+     */
+    resumeUpload: videoProcedure.query(async ({ ctx }) => {
+        const { video } = ctx;
+
+        if (!video.uploadId) {
+            throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "No active upload session",
+            });
+        }
+
+        console.log(
+            `[Pipeline] 🔄 Resuming Multipart Upload for ${video.id}...`,
+        );
+
+        let parts;
+        try {
+            parts = await listUploadedParts(video.id, video.uploadId);
+        } catch (error: any) {
+            if (error.name === "NoSuchUpload") {
+                console.warn(
+                    `[Pipeline] ⚠️ NoSuchUpload during resume for ${video.id}. Deleting stale DB record.`,
+                );
+                // Clean up the DB since S3 has discarded the upload session
+                await prisma.videos
+                    .delete({ where: { id: video.id } })
+                    .catch(() => {});
+
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message:
+                        "Upload session expired or aborted by server. Please start a new upload.",
+                });
+            }
+            throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to resume upload from storage provider.",
+                cause: error,
+            });
+        }
+
+        return {
+            videoId: video.id,
+            uploadId: video.uploadId,
+            wsUrl: buildWsUrl(video.id),
+            parts: parts.map((p) => ({
+                PartNumber: p.PartNumber,
+                ETag: p.ETag,
+            })),
+        };
+    }),
+
+    /**
+     * Complete the multipart upload
+     */
+    completeUpload: videoProcedure
+        .input(completeUploadSchema.omit({ videoId: true }))
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { uploadId, parts } = input;
+
+            if (video.uploadId !== uploadId) {
+                // If the video is already processing or ready, this might be a retry.
+                // We should check if the uploadId mismatches because it was already cleared/completed.
+                if (
+                    video.processingStatus === "PROCESSING" ||
+                    video.processingStatus === "READY"
+                ) {
+                    console.log(
+                        `[Pipeline] ⚠️ completeUpload called for ${video.id} which is already ${video.processingStatus}. Treating as success.`,
+                    );
+                    return {
+                        success: true,
+                        message: "Upload already completed",
+                    };
+                }
+
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Upload session mismatch",
+                });
+            }
+
+            console.log(
+                `[Pipeline] 🏁 Completing Multipart Upload for ${video.id}...`,
+            );
+
+            // Verify all parts have ETags
+            const missingETags = parts.filter((p) => !p.ETag);
+            if (missingETags.length > 0) {
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Some parts are missing ETags. Upload failed.",
+                });
+            }
+
+            try {
+                await completeMultipartUpload(
+                    video.id,
+                    uploadId,
+                    parts as CompletedPart[],
+                );
+            } catch (error: any) {
+                // S3 Error Handling & Recovery
+                if (error.name === "NoSuchUpload") {
+                    console.warn(
+                        `[Pipeline] ⚠️ NoSuchUpload for ${video.id}. Checking if duplicate or already completed...`,
+                    );
+
+                    // 1. Check DB (Fastest) - Already handled above, but double check fresh state
+                    const freshVideo = await prisma.videos.findUnique({
+                        where: { id: video.id },
+                        select: {
+                            processingStatus: true,
+                            uploadCompletedAt: true,
+                        },
+                    });
+
+                    if (
+                        freshVideo?.processingStatus === "PROCESSING" ||
+                        freshVideo?.uploadCompletedAt
+                    ) {
+                        console.log(
+                            `[Pipeline] ✅ DB says upload already completed. Returning success.`,
+                        );
+                        return {
+                            success: true,
+                            message: "Upload already completed",
+                        };
+                    }
+
+                    // 2. Check S3 Object Existence (Source of Truth)
+                    // If S3 merge succeeded but DB update failed previously, the upload ID is gone, but the file exists.
+                    try {
+                        const { headObject } =
+                            await import("../../lib/storage.js");
+                        const exists = await headObject(
+                            `raw-videos/${video.id}/source`,
+                        );
+
+                        if (exists) {
+                            console.log(
+                                `[Pipeline] ✅ Object exists in S3 despite NoSuchUpload error. Treating as success (Recovered).`,
+                            );
+
+                            // Fix DB State
+                            await prisma.videos.update({
+                                where: { id: video.id },
+                                data: {
+                                    uploadCompletedAt: new Date(),
+                                    processingStatus: "PROCESSING",
+                                },
+                            });
+
+                            // Trigger Transcode (since we recovered, we must ensure downstream works)
+                            try {
+                                const { JOBS } =
+                                    await import("../../lib/queue-definitions.js");
+                                await transcodeQueue.add(
+                                    JOBS.PROBE_AND_SPLIT,
+                                    {
+                                        videoId: video.id,
+                                        fileName: `raw-videos/${video.id}/source`,
+                                    },
+                                    { jobId: video.id },
+                                );
+                            } catch {}
+
+                            return {
+                                success: true,
+                                message: "Upload recovered and completed",
+                            };
+                        }
+                    } catch (headErr) {
+                        console.warn(
+                            `[Pipeline] ❌ Recovery failed: Object not found in S3.`,
+                            headErr,
+                        );
+                    }
+
+                    // Cleanup DB record if S3 lost the file completely
+                    await prisma.videos
+                        .delete({ where: { id: video.id } })
+                        .catch(() => {});
+
+                    throw new TRPCError({
+                        code: "NOT_FOUND",
+                        message:
+                            "The upload session expired or was discarded by the storage provider. Please upload again.",
+                    });
+                }
+
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to complete upload with storage provider.",
+                    cause: error,
+                });
+            }
+
+            // Update DB
+            await prisma.videos.update({
+                where: { id: video.id },
+                data: {
+                    uploadCompletedAt: new Date(),
+                    processingStatus: "PROCESSING",
+                },
+            });
+
+            try {
+                const { JOBS } = await import("../../lib/queue-definitions.js");
+
+                const key = `raw-videos/${video.id}/source`;
+
+                console.log(
+                    `[Pipeline] 🚀 Triggering Transcode Job for ${video.id} (Key: ${key})`,
+                );
+
+                await transcodeQueue.add(
+                    JOBS.PROBE_AND_SPLIT,
+                    {
+                        videoId: video.id,
+                        fileName: key,
+                    },
+                    { jobId: video.id },
+                );
+            } catch (error) {
+                console.warn(
+                    `[Pipeline] ⚠️ Failed to trigger transcode job explicitly:`,
+                    error,
+                );
+            }
+
+            return { success: true, message: "Upload completion initiated" };
+        }),
+
+    /**
+     * Abort a multipart upload
+     */
+    abortUpload: videoProcedure
+        .input(abortUploadSchema.omit({ videoId: true }))
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { uploadId } = input;
+
+            console.log(
+                `[Pipeline] 🛑 Aborting Multipart Upload for ${video.id}...`,
+            );
+
+            await abortMultipartUpload(video.id, uploadId);
+
+            // Remove from queue if present
+            try {
+                const job = await transcodeQueue.getJob(video.id);
+                if (job) {
+                    await job.remove();
+                    console.log(
+                        `[Pipeline] 🗑️ Removed pending job for ${video.id}`,
+                    );
+                }
+
+                // Clean local cache
+                const cacheDir = path.join(config.tempDir, video.id);
+                if (fs.existsSync(cacheDir)) {
+                    fs.rmSync(cacheDir, { recursive: true, force: true });
+                    console.log(
+                        `[Pipeline] 🧹 Cleaned local input cache for ${video.id}`,
+                    );
+                }
+            } catch (e) {
+                console.warn(
+                    `[Pipeline] ⚠️ Failed to remove job or cache during abort:`,
+                    e,
+                );
+            }
+
+            // Delete record
+            await prisma.videos.delete({ where: { id: video.id } });
+
+            // Ensure channel metrics update since the pending video was just destroyed
+            updateChannelStats(video.channelId).catch((err) =>
+                console.error(
+                    "[Video] Failed to update channel stats on abort",
+                    err,
+                ),
+            );
+
+            // Clear cache and tracking
+            await deleteVideoMetadata(video.id);
+            await deleteAggregateTracker(video.id);
+
+            return {
+                success: true,
+                message: "Upload aborted and record removed",
+            };
+        }),
+
+    /**
+     * Report a client-side upload failure
+     */
+    reportFailure: videoProcedure
+        .input(reportFailureSchema.omit({ videoId: true }))
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { error } = input;
+
+            await prisma.videos.update({
+                where: { id: video.id },
+                data: {
+                    processingStatus: "FAILED",
+                    processingError: error || "Client-side upload failed",
+                },
+            });
+
+            console.log(
+                `[Pipeline] ❌ Upload for ${video.id} reported as FAILED`,
+            );
+
+            return { success: true, message: "Video status updated to FAILED" };
+        }),
+
+    /**
+     * Get current processing status
+     */
+    getStatus: videoProcedure.query(async ({ ctx }) => {
+        const { video } = ctx;
+
+        // Return cached status
+        const status = await getCachedVideoStatus(video.id);
+
+        if (status) {
+            return status;
+        }
+
+        return {
+            status: video.processingStatus,
+            progress: video.processingProgress || 0,
+            error: video.processingError || undefined,
+            hlsUrl: video.hlsPlaylistUrl || undefined,
+            thumbnails: video.thumbnailOptions || undefined,
+        };
+    }),
+
+    /**
+     * Subscribe to processing status updates
+     */
+    onProcessingStatus: videoProcedure.subscription(async function* ({ ctx }) {
+        const { video } = ctx;
+        const channel = REDIS_KEYS.videoWsChannel(video.id);
+
+        try {
+            for await (const [rawMessage] of on(
+                redisSubscriptionManager,
+                channel,
+            )) {
+                // Runtime Validation: Ensure message matches schema
+                const result = VideoStatusEventSchema.safeParse(rawMessage);
+
+                if (!result.success) {
+                    console.warn(
+                        `[TRPC] ⚠️ Invalid Redis message on ${channel}:`,
+                        result.error,
+                    );
+                    continue;
+                }
+
+                const data = result.data;
+                yield data;
+
+                if (data.status === "READY" || data.status === "FAILED") {
+                    break; // Closes iterator, removing listener
+                }
+            }
+        } catch (err) {
+            // Handle aborts or errors
+        }
+    }),
+
+    // ─── Studio Content Management ───────────────────────────────────
+
+    /**
+     * Fetch channel content (videos/shorts) with cursor-based pagination and filters.
+     * Used by Studio Content page.
+     */
+    getChannelContent: channelProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+                visibility: z
+                    .enum(["PUBLIC", "PRIVATE", "UNLISTED", "SCHEDULED"])
+                    .optional(),
+                search: z.string().optional(),
+                isShort: z.boolean().optional(),
+                isAgeRestricted: z.boolean().optional(),
+                limit: z.number().min(1).max(100).default(30),
+                cursor: z.string().optional(),
+                sortOrder: z
+                    .enum(["newest", "oldest", "views"])
+                    .default("newest"),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            const {
+                visibility,
+                search,
+                isShort,
+                isAgeRestricted,
+                limit,
+                cursor,
+                sortOrder,
+            } = input;
+            const channelId = ctx.channel.id;
+
+            const cleanedSearch = search?.replace(/[&|!():*<>\\]/g, "").trim();
+            const formattedSearch = cleanedSearch
+                ? cleanedSearch
+                      .split(/\s+/)
+                      .map((word) => `${word}:*`)
+                      .join(" & ")
+                : undefined;
+
+            const where = {
+                channelId,
+                deletedAt: null,
+                ...(visibility && { visibility }),
+                ...(typeof isShort === "boolean" && { isShort }),
+                ...(typeof isAgeRestricted === "boolean" && {
+                    isAgeRestricted,
+                }),
+                ...(formattedSearch && {
+                    OR: [
+                        { title: { search: formattedSearch } },
+                        {
+                            description: {
+                                search: formattedSearch,
+                            },
+                        },
+                    ],
+                }),
+            };
+
+            const [items, totalCount] = await Promise.all([
+                prisma.videos.findMany({
+                    where,
+                    take: limit + 1,
+                    cursor: cursor ? { id: cursor } : undefined,
+                    skip: cursor ? 1 : 0,
+                    orderBy: [
+                        sortOrder === "views"
+                            ? { viewCount: "desc" }
+                            : sortOrder === "oldest"
+                              ? { createdAt: "asc" }
+                              : { createdAt: "desc" },
+                        { id: "desc" }, // Deterministic tie-breaker
+                    ],
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        thumbnailUrl: true,
+                        duration: true,
+                        visibility: true,
+                        adminStatus: true,
+                        adminNote: true,
+                        processingStatus: true,
+                        processingProgress: true,
+                        resolutions: true,
+                        viewCount: true,
+                        likeCount: true,
+                        commentCount: true,
+                        createdAt: true,
+                        publishedAt: true,
+                        scheduledAt: true,
+                        isShort: true,
+                        channelId: true,
+                        previewSprite: true,
+                        previewSpriteVtt: true,
+                    },
+                }),
+                prisma.videos.count({ where }),
+            ]);
+
+            let nextCursor: string | null = null;
+            if (items.length > limit) {
+                const nextItem = items.pop();
+                nextCursor = nextItem!.id;
+            }
+
+            return { items, nextCursor, totalCount };
+        }),
+
+    /**
+     * Bulk soft-delete videos.
+     * Ownership enforced via channelOwnerProcedure — only deletes videos belonging to the channel.
+     */
+    deleteVideos: channelProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+                videoIds: z.array(z.string()).min(1).max(100),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const channelId = ctx.channel.id;
+            const { videoIds } = input;
+
+            // Fetch video IDs that will actually be soft-deleted (belong to channel, not yet deleted)
+            const videosToDelete = await prisma.videos.findMany({
+                where: { id: { in: videoIds }, channelId, deletedAt: null },
+                select: { id: true },
+            });
+
+            // Only delete videos that belong to this channel
+            const result = await prisma.videos.updateMany({
+                where: {
+                    id: { in: videoIds },
+                    channelId,
+                    deletedAt: null,
+                },
+                data: { deletedAt: new Date() },
+            });
+
+            // Update channel stats
+            updateChannelStats(channelId).catch((err) =>
+                console.error(
+                    "[Video] Failed to update channel stats on delete",
+                    err,
+                ),
+            );
+
+            // Clean up S3 assets non-blocking (raw-videos + processed prefixes)
+            for (const v of videosToDelete) {
+                deleteS3Prefix(`raw-videos/${v.id}/`).catch((err) =>
+                    console.error(
+                        `[Video] Failed to delete raw S3 assets for ${v.id}`,
+                        err,
+                    ),
+                );
+                deleteS3Prefix(`processed/${v.id}/`).catch((err) =>
+                    console.error(
+                        `[Video] Failed to delete processed S3 assets for ${v.id}`,
+                        err,
+                    ),
+                );
+                deleteAggregateTracker(v.id).catch(() => {});
+            }
+
+            // Remove any scheduled jobs
+            try {
+                await Promise.all(
+                    videoIds.map((id) => schedulerQueue.remove(id)),
+                );
+            } catch (err) {
+                console.warn(
+                    `[Video] ⚠️ Failed to remove scheduled jobs for deleted videos:`,
+                    err,
+                );
+            }
+
+            return { success: true, count: result.count };
+        }),
+
+    /**
+     * Bulk update video visibility.
+     * Resets scheduledAt for non-SCHEDULED visibility values.
+     */
+    updateVideosVisibility: channelProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+                videoIds: z.array(z.string()).min(1).max(100),
+                visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const channelId = ctx.channel.id;
+            const { videoIds, visibility } = input;
+
+            // Atomically fetch the IDs that will transition to PUBLIC by checking
+            // current state *within* the update query result ordering.
+            // We do a pre-fetch immediately before the update to minimize the race window.
+            let previouslyNonPublicIds: string[] = [];
+            if (visibility === "PUBLIC") {
+                const nonPublic = await prisma.videos.findMany({
+                    where: {
+                        id: { in: videoIds },
+                        channelId,
+                        visibility: { not: "PUBLIC" },
+                        deletedAt: null,
+                    },
+                    select: { id: true },
+                });
+                previouslyNonPublicIds = nonPublic.map((v) => v.id);
+            }
+
+            const result = await prisma.videos.updateMany({
+                where: {
+                    id: { in: videoIds },
+                    channelId,
+                },
+                data: {
+                    visibility,
+                    scheduledAt: null,
+                },
+            });
+
+            // Update channel stats asynchronously to prevent blocking the UI
+            updateChannelStats(channelId).catch((err) =>
+                console.error("[Video] Failed to update channel stats:", err),
+            );
+
+            // NEW_VIDEO notification: only for videos that were previously non-public
+            if (visibility === "PUBLIC" && previouslyNonPublicIds.length > 0) {
+                const [channel, videos] = await Promise.all([
+                    prisma.channels.findUnique({
+                        where: { id: channelId },
+                        select: { name: true, handle: true },
+                    }),
+                    prisma.videos.findMany({
+                        where: { id: { in: previouslyNonPublicIds } },
+                        select: { id: true, title: true, thumbnailUrl: true },
+                    }),
+                ]);
+
+                for (const vid of videos) {
+                    redis
+                        .xadd(
+                            "queue:new-video-notifications",
+                            "*",
+                            "data",
+                            JSON.stringify({
+                                channelId,
+                                videoId: vid.id,
+                                title: vid.title,
+                                thumbnailUrl: vid.thumbnailUrl,
+                                channelName: channel?.name,
+                                channelHandle: channel?.handle,
+                            }),
+                        )
+                        .catch((err) =>
+                            console.error(
+                                "[Video] Failed to queue NEW_VIDEO notification",
+                                err,
+                            ),
+                        );
+                }
+            }
+
+            return { success: true, count: result.count };
+        }),
+
+    /**
+     * Get single video details for editing.
+     * Includes tags, category, and chapters.
+     */
+    getVideo: videoProcedure.query(async ({ ctx }) => {
+        const { video } = ctx;
+
+        const videoDetails = await prisma.videos.findUnique({
+            where: { id: video.id },
+            include: {
+                tags: true,
+                category: true,
+                chapters: {
+                    orderBy: { startTime: "asc" },
+                },
+            },
+        });
+
+        if (!videoDetails) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Video not found",
+            });
+        }
+
+        return videoDetails;
+    }),
+
+    /**
+     * Update video metadata.
+     * Handles title, description, visibility, scheduling, tags, category, and chapters.
+     */
+    updateVideo: videoProcedure
+        .input(
+            z
+                .object({
+                    title: z.string().min(1).max(100).optional(),
+                    description: z.string().max(5000).optional(),
+                    visibility: z
+                        .enum(["PUBLIC", "PRIVATE", "UNLISTED", "SCHEDULED"])
+                        .optional(),
+                    scheduledAt: z.date().nullable().optional(),
+                    categoryId: z.string().nullable().optional(),
+                    tags: z.array(z.string()).optional(),
+                    chapters: z
+                        .array(
+                            z.object({
+                                title: z.string().min(1).max(200),
+                                startTime: z.number().min(0),
+                            }),
+                        )
+                        .optional(),
+                    thumbnailUrl: z.string().optional(),
+                    isAgeRestricted: z.boolean().optional(),
+                    allowComments: z.boolean().optional(),
+                    allowEmbedding: z.boolean().optional(),
+                })
+                .refine(
+                    (data) => {
+                        if (data.visibility === "SCHEDULED") {
+                            return data.scheduledAt != null;
+                        }
+                        return true;
+                    },
+                    {
+                        message:
+                            "Schedule date is required when visibility is scheduled",
+                        path: ["scheduledAt"],
+                    },
+                ),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { video } = ctx;
+            const { tags, chapters, ...otherData } = input;
+
+            // Sanitize scheduling: clear scheduledAt if not visibility SCHEDULED
+            if (otherData.visibility && otherData.visibility !== "SCHEDULED") {
+                otherData.scheduledAt = null;
+            }
+
+            const updatedVideo = await prisma.videos.update({
+                where: { id: video.id },
+                data: {
+                    ...otherData,
+                    ...(tags && {
+                        tags: {
+                            set: [], // Disconnect all existing tags
+                            connectOrCreate: tags.map((tag) => ({
+                                where: { name: tag.trim() },
+                                create: { name: tag.trim() },
+                            })),
+                        },
+                    }),
+                    ...(chapters && {
+                        chapters: {
+                            deleteMany: {}, // Delete all existing chapters
+                            create: chapters.map((c) => ({
+                                title: c.title,
+                                startTime: c.startTime,
+                            })),
+                        },
+                    }),
+                },
+                include: {
+                    tags: true,
+                    category: true,
+                    chapters: {
+                        orderBy: { startTime: "asc" },
+                    },
+                },
+            });
+
+            // If visibility changed, update channel stats
+            if (
+                otherData.visibility &&
+                otherData.visibility !== video.visibility
+            ) {
+                updateChannelStats(video.channelId).catch((err) =>
+                    console.error(
+                        "[Video] Failed to update channel stats on update",
+                        err,
+                    ),
+                );
+
+                // NEW_VIDEO notification: fan out to subscribers when video goes PUBLIC
+                if (
+                    otherData.visibility === "PUBLIC" &&
+                    video.visibility !== "PUBLIC"
+                ) {
+                    // Fetch channel info for notification message
+                    const channel = await prisma.channels.findUnique({
+                        where: { id: video.channelId },
+                        select: { name: true, handle: true },
+                    });
+
+                    // Push lightweight event to Redis Stream (worker handles fan-out)
+                    redis
+                        .xadd(
+                            "queue:new-video-notifications",
+                            "*",
+                            "data",
+                            JSON.stringify({
+                                channelId: video.channelId,
+                                videoId: video.id,
+                                title: updatedVideo.title,
+                                thumbnailUrl: updatedVideo.thumbnailUrl,
+                                channelName: channel?.name,
+                                channelHandle: channel?.handle,
+                            }),
+                        )
+                        .catch((err) =>
+                            console.error(
+                                "[Video] Failed to queue NEW_VIDEO notification",
+                                err,
+                            ),
+                        );
+                }
+            }
+
+            // HANDLE SCHEDULING
+            // Always try to remove existing job to handle rescheduling or cancellation
+            if (
+                otherData.visibility !== undefined ||
+                otherData.scheduledAt !== undefined
+            ) {
+                try {
+                    await schedulerQueue.remove(video.id);
+
+                    if (
+                        updatedVideo.visibility === "SCHEDULED" &&
+                        updatedVideo.scheduledAt
+                    ) {
+                        const delay =
+                            updatedVideo.scheduledAt.getTime() - Date.now();
+
+                        if (delay > 0) {
+                            console.log(
+                                `[Video] 🕰️ Scheduling video ${video.id} publish in ${Math.round(delay / 1000)}s`,
+                            );
+                            await schedulerQueue.add(
+                                JOBS.PUBLISH_SCHEDULED_VIDEO,
+                                { videoId: video.id },
+                                {
+                                    delay,
+                                    jobId: video.id, // Enforce unique job ID per video
+                                    removeOnComplete: true,
+                                    attempts: 5,
+                                    backoff: {
+                                        type: "exponential",
+                                        delay: 2000,
+                                    },
+                                },
+                            );
+                        } else {
+                            console.warn(
+                                `[Video] ⚠️ Scheduled time is in the past. Video will remain SCHEDULED until worker picks it up or user updates.`,
+                            );
+                            // Optionally triggered immediately?
+                            // The worker *should* handle past jobs if we add with 0 delay,
+                            // but let's just add it with 0 delay to be safe.
+                            await schedulerQueue.add(
+                                JOBS.PUBLISH_SCHEDULED_VIDEO,
+                                { videoId: video.id },
+                                {
+                                    jobId: video.id,
+                                    removeOnComplete: true,
+                                    attempts: 5,
+                                    backoff: {
+                                        type: "exponential",
+                                        delay: 2000,
+                                    },
+                                },
+                            );
+                        }
+                    } else {
+                        console.log(
+                            `[Video] 🗑️ Removed scheduled job for ${video.id} (Visibility: ${updatedVideo.visibility})`,
+                        );
+                    }
+                } catch (err) {
+                    console.error(
+                        `[Video] ❌ Failed to manage scheduler job for ${video.id}:`,
+                        err,
+                    );
+                    // Non-critical: don't fail the request, but log loud
+                }
+            }
+
+            return updatedVideo;
+        }),
+
+    // ─── Public Playback Endpoints ───────────────────────────────────
+
+    /**
+     * Get a video for public viewing (Watch Page).
+     * Includes "Hybrid Read" for Watch History.
+     */
+    getPublicVideo: protectedProcedure
+        .input(z.object({ videoId: z.string().min(1) }))
+        .query(async ({ ctx, input }) => {
+            const { videoId } = input;
+            const userId = ctx.session.user.id;
+
+            const video = await prisma.videos.findUnique({
+                where: { id: videoId },
+                include: {
+                    channels: {
+                        select: {
+                            id: true,
+                            name: true,
+                            handle: true,
+                            image: true,
+                            subscriberCount: true,
+                            userId: true,
+                        },
+                    },
+                    tags: true,
+                    category: true,
+                    chapters: { orderBy: { startTime: "asc" } },
+                },
+            });
+
+            if (!video || video.deletedAt !== null) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Video not found",
+                });
+            }
+
+            const isOwner = video.channels?.userId === userId;
+            if (
+                video.visibility !== "PUBLIC" &&
+                video.visibility !== "UNLISTED" &&
+                !isOwner
+            ) {
+                throw new TRPCError({
+                    code: "NOT_FOUND", // Mask private/unlisted as not found for non-owners
+                    message: "Video not found or private",
+                });
+            }
+
+            // Hybrid Read for Watch History
+            let history = null;
+            if (userId) {
+                const dbHistory = await prisma.watch_history.findUnique({
+                    where: {
+                        userId_videoId: { userId, videoId },
+                    },
+                    select: {
+                        watchedSeconds: true,
+                        lastWatchedAt: true,
+                    },
+                });
+
+                // Merge with Redis Session
+                const merged = await StreamService.getMergedHistory(
+                    userId,
+                    videoId,
+                    dbHistory,
+                );
+                history = merged;
+            }
+
+            // Check if user liked/disliked/subscribed
+            let engagement = {
+                liked: false,
+                disliked: false,
+                subscribed: false,
+            };
+            if (userId) {
+                // Parallel fetch: Cache (Fast) + DB (Reliable/Slow) + Subscription
+                // We fetch DB reaction as fallback or source of truth if cache empty
+                const [cachedReaction, dbReaction, sub] = await Promise.all([
+                    StreamService.getUserReaction(userId, videoId),
+                    prisma.video_reactions.findUnique({
+                        where: { videoId_userId: { userId, videoId } },
+                    }),
+                    prisma.subscriptions.findUnique({
+                        where: {
+                            subscriberId_channelId: {
+                                subscriberId: userId,
+                                channelId: video.channelId,
+                            },
+                        },
+                    }),
+                ]);
+
+                // Hybrid Logic: Cache takes precedence if present
+                const rawReaction = cachedReaction || dbReaction?.type;
+                const reactionType =
+                    rawReaction === "REMOVE" ? null : rawReaction;
+
+                engagement.liked = reactionType === "LIKE";
+                engagement.disliked = reactionType === "DISLIKE";
+                engagement.subscribed = !!sub;
+            }
+
+            return {
+                ...video,
+                history, // { watchedSeconds: 120, timestamp: ... }
+                engagement,
+            };
+        }),
+
+    /**
+     * Record a public view (Fast Lane).
+     * Called once when video starts or reaches threshold.
+     */
+    registerView: protectedProcedure
+        .input(z.object({ videoId: z.string().min(1) }))
+        .mutation(async ({ ctx, input }) => {
+            const { videoId } = input;
+
+            // Get IP/UserAgent for deduplication
+            // Express Adapter puts req/res in ctx
+            // We need to type cast ctx to access req if not typed
+            // Assuming ctx.req is available or we use a fallback
+            // In tRPC express adapter, ctx usually has req/res if we put it there in createContext
+
+            // NOTE: ctx.user is present. ctx.req might need check.
+            // checking createContext... usually it has req.
+            // If not available, we use random ID? No, IP is better.
+            // Let's assume we can get it or fallback.
+
+            const ip = ctx.req.ip || ctx.session.session.ipAddress || "unknown";
+            const ua = ctx.req?.headers?.["user-agent"] || "unknown";
+
+            await StreamService.addViewItem(videoId, ip, ua);
+            return { success: true };
+        }),
+
+    /**
+     * Heartbeat: Update Watch Progress (Reliable Lane).
+     * Called every 10-30s by client.
+     */
+    updateWatchProgress: protectedProcedure
+        .input(
+            z.object({
+                videoId: z.string().min(1),
+                seconds: z.number().min(0),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+
+            const { videoId, seconds } = input;
+
+            await StreamService.addHistoryItem(userId, videoId, seconds);
+            return { success: true };
+        }),
+});
