@@ -519,6 +519,9 @@ export class CommentService {
             this.KEYS.list(comment.videoId, "TOP"),
             this.KEYS.list(comment.videoId, "NEWEST"),
         );
+        if (comment.parentId) {
+            await redis.del(`comment:${comment.parentId}:replies:page1`);
+        }
 
         // Queue Comment Count Decrement
         const pipeline = redis.pipeline();

@@ -136,18 +136,6 @@ export const setupWorker = () => {
         console.log(`[Worker] ✅ Job ${job.id} completed!`);
     });
 
-    worker.on("failed", async (job, err) => {
-        console.error(`[Worker] ❌ Job ${job?.id} failed:`, err);
-        if (job?.data?.videoId) {
-            const { publishToVideoChannel } = await import("../lib/pubsub.js");
-            await publishToVideoChannel(job.data.videoId, {
-                status: "FAILED",
-                error: err.message || "Internal processing error",
-                type: "error",
-            });
-        }
-    });
-
     // --- PROGRESS RELAY ---
     // --- AGGREGATE PROGRESS RELAY ---
     worker.on("progress", async (job, progress) => {

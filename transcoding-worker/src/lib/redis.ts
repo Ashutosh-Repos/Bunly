@@ -4,7 +4,7 @@ const globalForRedis = global as unknown as { redis: Redis; redisUrl: string };
 
 export const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
-const createRedisClient = (isBullMQ = false) => {
+export const createRedisClient = (isBullMQ = false) => {
     // Obfuscate sensitive part for logging
     const logUrl = redisUrl.replace(/\/\/.*@/, "//***:***@");
     console.log(

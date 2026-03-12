@@ -2,6 +2,8 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 export const config = {
+    appName: process.env.APP_NAME || "Bunly",
+    appUrl: process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000",
     port: parseInt(process.env.PORT || "4000"),
     nodeEnv: process.env.NODE_ENV || "development",
     corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
@@ -31,25 +33,6 @@ export const config = {
     // Node-specific settings for horizontal scaling
     nodeId:
         process.env.NODE_ID || process.env.HOSTNAME || `node-${process.pid}`,
-    tempDir: process.env.TEMP_DIR || "/tmp/transcoder",
-
-    // --- New Reliability & Scalability Settings ---
-    hwAccel: (process.env.HW_ACCEL || "none") as
-        | "none"
-        | "nvenc"
-        | "videotoolbox"
-        | "vaapi",
-    progressThrottleMs: parseInt(process.env.PROGRESS_THROTTLE_MS || "5000"), // 5 seconds
-    cleanupIntervalMs: parseInt(process.env.CLEANUP_INTERVAL_MS || "900000"), // 15 minutes
-    maxTempAgeMs: parseInt(process.env.MAX_TEMP_AGE_MS || "7200000"), // 2 hours
-    lock: {
-        ttlSeconds: 120, // 2 minutes (short TTL, refreshed via heartbeat)
-        heartbeatIntervalMs: 30000, // Refresh every 30 seconds
-    },
-    // --- Long-Running Operation Timeouts ---
-    downloadTimeoutMs: parseInt(process.env.DOWNLOAD_TIMEOUT_MS || "1800000"), // 30 minutes for large files
-    jobLockDurationMs: parseInt(process.env.JOB_LOCK_DURATION_MS || "1800000"), // 30 minutes
-    fileWaitTimeoutMs: parseInt(process.env.FILE_WAIT_TIMEOUT_MS || "1800000"), // 30 minutes
 };
 
 export default config;

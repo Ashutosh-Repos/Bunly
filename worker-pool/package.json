@@ -1,0 +1,28 @@
+{
+    "name": "worker-pool",
+    "version": "1.0.0",
+    "description": "Engagement, Email & Scheduler Worker Pool for Bunly",
+    "type": "module",
+    "main": "src/index.ts",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "start": "tsx src/index.ts",
+        "build": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@prisma/adapter-pg": "^7.4.2",
+        "@prisma/client": "^7.4.2",
+        "bullmq": "^5.70.4",
+        "dotenv": "^17.3.1",
+        "ioredis": "^5.10.0",
+        "pg": "^8.20.0",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "@types/node": "^25.4.0",
+        "@types/pg": "^8.18.0",
+        "prisma": "^7.4.2",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
+}

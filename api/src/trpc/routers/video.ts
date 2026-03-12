@@ -33,8 +33,7 @@ import {
     JOBS,
 } from "../../lib/queue-definitions.js";
 import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
-import * as path from "path";
-import * as fs from "fs";
+
 import { CompletedPart } from "@aws-sdk/client-s3";
 
 import { StreamService } from "../../services/StreamService";
@@ -657,6 +656,14 @@ export const videoRouter = router({
 
             await abortMultipartUpload(video.id, uploadId);
 
+            // Clean up any potential orphaned S3 parts or source file that might have been pushed
+            await deleteS3Prefix(`raw-videos/${video.id}/`).catch((err) => {
+                console.warn(
+                    `[Pipeline] ⚠️ Failed to delete S3 prefix during abort:`,
+                    err,
+                );
+            });
+
             // Remove from queue if present
             try {
                 const job = await transcodeQueue.getJob(video.id);
@@ -664,15 +671,6 @@ export const videoRouter = router({
                     await job.remove();
                     console.log(
                         `[Pipeline] 🗑️ Removed pending job for ${video.id}`,
-                    );
-                }
-
-                // Clean local cache
-                const cacheDir = path.join(config.tempDir, video.id);
-                if (fs.existsSync(cacheDir)) {
-                    fs.rmSync(cacheDir, { recursive: true, force: true });
-                    console.log(
-                        `[Pipeline] 🧹 Cleaned local input cache for ${video.id}`,
                     );
                 }
             } catch (e) {

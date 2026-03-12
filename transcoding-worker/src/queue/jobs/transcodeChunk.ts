@@ -9,16 +9,17 @@ import { transcodeResolution } from "../../lib/ffmpeg.js";
 
 const getTempDir = () => config.tempDir;
 
-async function waitForFile(
-    filePath: string,
+async function waitForLockRelease(
+    redisKey: string,
     timeout = config.fileWaitTimeoutMs,
 ) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-        if (fs.existsSync(filePath)) return;
+        const exists = await redis.exists(redisKey);
+        if (!exists) return; // Lock is gone, other worker finished or crashed
         await new Promise((r) => setTimeout(r, 2000));
     }
-    throw new Error(`Timeout waiting for file: ${filePath}`);
+    throw new Error(`Timeout waiting for lock release: ${redisKey}`);
 }
 
 export async function handleTranscodeChunk(job: Job) {
@@ -43,9 +44,8 @@ export async function handleTranscodeChunk(job: Job) {
         console.log(
             `🔒 Lock held for ${s3Key} (${resolution.name}), skipping duplicate...`,
         );
-        const resultPath = path.join(localDir, "playlist.m3u8");
         try {
-            await waitForFile(resultPath, config.fileWaitTimeoutMs);
+            await waitForLockRelease(lockKey, config.fileWaitTimeoutMs);
             return { resolution: resolution.name };
         } catch (e) {
             throw new Error(

@@ -668,8 +668,8 @@ export const playlistRouter = router({
                         title: pv.videos.title,
                         duration: pv.videos.duration,
                         thumbnailUrl: pv.videos.thumbnailUrl,
-                        channelName: pv.videos.channels.name,
-                        channelHandle: pv.videos.channels.handle,
+                        channelName: pv.videos.channels?.name || null,
+                        channelHandle: pv.videos.channels?.handle || null,
                         position: pv.position,
                     })),
             };

@@ -115,6 +115,10 @@ export async function handleMergeManifest(job: Job) {
         force: true,
     });
 
+    // To prevent race-condition data loss, DO NOT delete the raw source immediately.
+    // Rely on an S3 Object Lifecycle policy (e.g. 7 days expiration for /raw-videos)
+    // or a dedicated background garbage collection job later.
+    /*
     try {
         await deleteS3Prefix(`raw-videos/${videoId}/`);
         console.log(`[Pipeline] 🗑️ Cleaned up raw source for ${videoId}`);
@@ -124,6 +128,7 @@ export async function handleMergeManifest(job: Job) {
             e,
         );
     }
+    */
 
     return { masterKey, thumbnailOptions, previewSprite, previewSpriteVtt };
 }

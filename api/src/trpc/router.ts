@@ -129,7 +129,7 @@ const enforceVideoOwnership = t.middleware(
             throw new TRPCError({
                 code: "BAD_REQUEST",
                 message:
-                    "channelId is required in input to use channelProcedure",
+                    "videoId is required in input to use videoProcedure",
             });
         }
 
