@@ -15,7 +15,7 @@ const envSchema = z.object({
     AWS_ACCESS_KEY_ID: z.string().default("minioadmin"),
     AWS_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
     AWS_S3_BUCKET_NAME: z.string().default("youtube-videos"),
-    AWS_REGION: z.string().default("us-east-1"),
+    AWS_REGION: z.string().default("auto"),
     // Transcoder specific configs
     TRANSCODER_CONCURRENCY: z
         .string()

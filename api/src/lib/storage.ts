@@ -33,7 +33,7 @@ const s3Client = new S3Client({
 });
 
 // Public endpoint for browser-facing presigned URLs
-// On Railway: PUBLIC_S3_URL = "https://bucket-xxx.up.railway.app"
+// On Railway: PUBLIC_S3_URL = "https://t3.storageapi.dev"
 // Locally: falls back to the same internal endpoint
 const publicEndpoint = config.s3.publicUrl || internalEndpoint;
 

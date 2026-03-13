@@ -16,7 +16,7 @@ import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyWebsocket from "@fastify/websocket";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import { auth } from "./lib/auth.js";
-import { appRouter } from "./trpc/router.js";
+import { appRouter } from "./trpc/appRouter.js";
 import { createContext } from "./trpc/context.js";
 import { env } from "./env.js";
 import { prisma } from "./lib/prisma.js";

@@ -26,12 +26,12 @@ const envSchema = z.object({
     EMAIL_FROM: z.string().email().default("clashutosh04@gmail.com"),
     BREVO_API_KEY: z.string().optional(),
     
-    // S3 Storage (MinIO)
+    // S3-compatible Storage (Local: MinIO, Production: Railway Bucket)
     AWS_S3_ENDPOINT: z.string().url().default("http://localhost:9000"),
     AWS_ACCESS_KEY_ID: z.string().default("minioadmin"),
     AWS_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
     AWS_S3_BUCKET_NAME: z.string().default("youtube-videos"),
-    AWS_REGION: z.string().default("us-east-1"),
+    AWS_REGION: z.string().default("auto"),
     PUBLIC_S3_URL: z.string().url().optional(),
     
     // Tuning and worker config
