@@ -331,6 +331,8 @@ exports.Prisma.StrikesScalarFieldEnum = {
   issuedAt: 'issuedAt',
   expiresAt: 'expiresAt',
   appealed: 'appealed',
+  appealedAt: 'appealedAt',
+  appealNote: 'appealNote',
   revokedAt: 'revokedAt',
   adminId: 'adminId'
 };
@@ -656,6 +658,7 @@ exports.Prisma.strikesOrderByRelevanceFieldEnum = {
   videoId: 'videoId',
   commentId: 'commentId',
   postId: 'postId',
+  appealNote: 'appealNote',
   adminId: 'adminId'
 };
 

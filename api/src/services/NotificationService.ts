@@ -23,8 +23,6 @@ export class NotificationService {
                 | "createdAt"
                 | "updatedAt"
                 | "user"
-                | "emailEnabled"
-                | "pushEnabled"
             >
         >
     > = {

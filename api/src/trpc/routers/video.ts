@@ -4,6 +4,7 @@ import { on } from "events";
 import {
     router,
     protectedProcedure,
+    publicProcedure,
     videoProcedure,
     channelProcedure,
 } from "../router.js";
@@ -1444,5 +1445,116 @@ export const videoRouter = router({
 
             await StreamService.addHistoryItem(userId, videoId, seconds);
             return { success: true };
+        }),
+
+    setChapters: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                chapters: z.array(
+                    z.object({
+                        title: z.string().max(100),
+                        startTime: z.number().int().min(0),
+                    })
+                ),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, chapters } = input;
+
+            await prisma.$transaction([
+                prisma.video_chapters.deleteMany({ where: { videoId } }),
+                prisma.video_chapters.createMany({
+                    data: chapters.map((c) => ({ videoId, ...c })),
+                }),
+            ]);
+
+            return { success: true };
+        }),
+
+    getChapters: publicProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query(async ({ input }) => {
+            return prisma.video_chapters.findMany({
+                where: { videoId: input.videoId },
+                orderBy: { startTime: "asc" },
+            });
+        }),
+
+    addCard: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                type: z.enum(["VIDEO", "PLAYLIST", "CHANNEL", "LINK", "POLL"]),
+                title: z.string().max(100).optional(),
+                startTime: z.number().int().min(0),
+                endTime: z.number().int().optional(),
+                targetVideoId: z.string().optional(),
+                targetPlaylistId: z.string().optional(),
+                targetChannelId: z.string().optional(),
+                targetUrl: z.string().url().max(500).optional(),
+                pollOptions: z.any().optional(),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, ...data } = input;
+            return prisma.video_cards.create({
+                data: {
+                    videoId,
+                    ...data,
+                },
+            });
+        }),
+
+    updateCard: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                cardId: z.string(),
+                title: z.string().max(100).optional(),
+                startTime: z.number().int().min(0).optional(),
+                endTime: z.number().int().optional(),
+                targetVideoId: z.string().optional(),
+                targetPlaylistId: z.string().optional(),
+                targetChannelId: z.string().optional(),
+                targetUrl: z.string().url().max(500).optional(),
+                pollOptions: z.any().optional(),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, cardId, ...data } = input;
+            
+            const existing = await prisma.video_cards.findUnique({ where: { id: cardId } });
+            if (!existing || existing.videoId !== videoId) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+            }
+
+            return prisma.video_cards.update({
+                where: { id: cardId },
+                data,
+            });
+        }),
+
+    deleteCard: videoProcedure
+        .input(z.object({ videoId: z.string(), cardId: z.string() }))
+        .mutation(async ({ input }) => {
+            const { videoId, cardId } = input;
+            
+            const existing = await prisma.video_cards.findUnique({ where: { id: cardId } });
+            if (!existing || existing.videoId !== videoId) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+            }
+
+            await prisma.video_cards.delete({ where: { id: cardId } });
+            return { success: true };
+        }),
+
+    getCards: publicProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query(async ({ input }) => {
+            return prisma.video_cards.findMany({
+                where: { videoId: input.videoId },
+                orderBy: { startTime: "asc" },
+            });
         }),
 });

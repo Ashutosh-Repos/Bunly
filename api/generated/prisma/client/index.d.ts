@@ -19770,6 +19770,8 @@ export namespace Prisma {
     issuedAt: Date | null
     expiresAt: Date | null
     appealed: boolean | null
+    appealedAt: Date | null
+    appealNote: string | null
     revokedAt: Date | null
     adminId: string | null
   }
@@ -19788,6 +19790,8 @@ export namespace Prisma {
     issuedAt: Date | null
     expiresAt: Date | null
     appealed: boolean | null
+    appealedAt: Date | null
+    appealNote: string | null
     revokedAt: Date | null
     adminId: string | null
   }
@@ -19806,6 +19810,8 @@ export namespace Prisma {
     issuedAt: number
     expiresAt: number
     appealed: number
+    appealedAt: number
+    appealNote: number
     revokedAt: number
     adminId: number
     _all: number
@@ -19834,6 +19840,8 @@ export namespace Prisma {
     issuedAt?: true
     expiresAt?: true
     appealed?: true
+    appealedAt?: true
+    appealNote?: true
     revokedAt?: true
     adminId?: true
   }
@@ -19852,6 +19860,8 @@ export namespace Prisma {
     issuedAt?: true
     expiresAt?: true
     appealed?: true
+    appealedAt?: true
+    appealNote?: true
     revokedAt?: true
     adminId?: true
   }
@@ -19870,6 +19880,8 @@ export namespace Prisma {
     issuedAt?: true
     expiresAt?: true
     appealed?: true
+    appealedAt?: true
+    appealNote?: true
     revokedAt?: true
     adminId?: true
     _all?: true
@@ -19975,6 +19987,8 @@ export namespace Prisma {
     issuedAt: Date
     expiresAt: Date | null
     appealed: boolean
+    appealedAt: Date | null
+    appealNote: string | null
     revokedAt: Date | null
     adminId: string | null
     _count: StrikesCountAggregateOutputType | null
@@ -20012,6 +20026,8 @@ export namespace Prisma {
     issuedAt?: boolean
     expiresAt?: boolean
     appealed?: boolean
+    appealedAt?: boolean
+    appealNote?: boolean
     revokedAt?: boolean
     adminId?: boolean
     reports?: boolean | strikes$reportsArgs<ExtArgs>
@@ -20035,6 +20051,8 @@ export namespace Prisma {
     issuedAt?: boolean
     expiresAt?: boolean
     appealed?: boolean
+    appealedAt?: boolean
+    appealNote?: boolean
     revokedAt?: boolean
     adminId?: boolean
     user_strikes_adminIdTouser?: boolean | strikes$user_strikes_adminIdTouserArgs<ExtArgs>
@@ -20056,6 +20074,8 @@ export namespace Prisma {
     issuedAt?: boolean
     expiresAt?: boolean
     appealed?: boolean
+    appealedAt?: boolean
+    appealNote?: boolean
     revokedAt?: boolean
     adminId?: boolean
     user_strikes_adminIdTouser?: boolean | strikes$user_strikes_adminIdTouserArgs<ExtArgs>
@@ -20077,11 +20097,13 @@ export namespace Prisma {
     issuedAt?: boolean
     expiresAt?: boolean
     appealed?: boolean
+    appealedAt?: boolean
+    appealNote?: boolean
     revokedAt?: boolean
     adminId?: boolean
   }
 
-  export type strikesOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "channelId" | "userId" | "type" | "severity" | "reason" | "internalNote" | "videoId" | "commentId" | "postId" | "issuedAt" | "expiresAt" | "appealed" | "revokedAt" | "adminId", ExtArgs["result"]["strikes"]>
+  export type strikesOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "channelId" | "userId" | "type" | "severity" | "reason" | "internalNote" | "videoId" | "commentId" | "postId" | "issuedAt" | "expiresAt" | "appealed" | "appealedAt" | "appealNote" | "revokedAt" | "adminId", ExtArgs["result"]["strikes"]>
   export type strikesInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     reports?: boolean | strikes$reportsArgs<ExtArgs>
     user_strikes_adminIdTouser?: boolean | strikes$user_strikes_adminIdTouserArgs<ExtArgs>
@@ -20122,6 +20144,8 @@ export namespace Prisma {
       issuedAt: Date
       expiresAt: Date | null
       appealed: boolean
+      appealedAt: Date | null
+      appealNote: string | null
       revokedAt: Date | null
       adminId: string | null
     }, ExtArgs["result"]["strikes"]>
@@ -20564,6 +20588,8 @@ export namespace Prisma {
     readonly issuedAt: FieldRef<"strikes", 'DateTime'>
     readonly expiresAt: FieldRef<"strikes", 'DateTime'>
     readonly appealed: FieldRef<"strikes", 'Boolean'>
+    readonly appealedAt: FieldRef<"strikes", 'DateTime'>
+    readonly appealNote: FieldRef<"strikes", 'String'>
     readonly revokedAt: FieldRef<"strikes", 'DateTime'>
     readonly adminId: FieldRef<"strikes", 'String'>
   }
@@ -34115,6 +34141,8 @@ export namespace Prisma {
     issuedAt: 'issuedAt',
     expiresAt: 'expiresAt',
     appealed: 'appealed',
+    appealedAt: 'appealedAt',
+    appealNote: 'appealNote',
     revokedAt: 'revokedAt',
     adminId: 'adminId'
   };
@@ -34527,6 +34555,7 @@ export namespace Prisma {
     videoId: 'videoId',
     commentId: 'commentId',
     postId: 'postId',
+    appealNote: 'appealNote',
     adminId: 'adminId'
   };
 
@@ -36252,6 +36281,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFilter<"strikes"> | Date | string
     expiresAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     appealed?: BoolFilter<"strikes"> | boolean
+    appealedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
+    appealNote?: StringNullableFilter<"strikes"> | string | null
     revokedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     adminId?: StringNullableFilter<"strikes"> | string | null
     reports?: ReportsListRelationFilter
@@ -36274,6 +36305,8 @@ export namespace Prisma {
     issuedAt?: SortOrder
     expiresAt?: SortOrderInput | SortOrder
     appealed?: SortOrder
+    appealedAt?: SortOrderInput | SortOrder
+    appealNote?: SortOrderInput | SortOrder
     revokedAt?: SortOrderInput | SortOrder
     adminId?: SortOrderInput | SortOrder
     reports?: reportsOrderByRelationAggregateInput
@@ -36300,6 +36333,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFilter<"strikes"> | Date | string
     expiresAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     appealed?: BoolFilter<"strikes"> | boolean
+    appealedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
+    appealNote?: StringNullableFilter<"strikes"> | string | null
     revokedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     adminId?: StringNullableFilter<"strikes"> | string | null
     reports?: ReportsListRelationFilter
@@ -36322,6 +36357,8 @@ export namespace Prisma {
     issuedAt?: SortOrder
     expiresAt?: SortOrderInput | SortOrder
     appealed?: SortOrder
+    appealedAt?: SortOrderInput | SortOrder
+    appealNote?: SortOrderInput | SortOrder
     revokedAt?: SortOrderInput | SortOrder
     adminId?: SortOrderInput | SortOrder
     _count?: strikesCountOrderByAggregateInput
@@ -36348,6 +36385,8 @@ export namespace Prisma {
     issuedAt?: DateTimeWithAggregatesFilter<"strikes"> | Date | string
     expiresAt?: DateTimeNullableWithAggregatesFilter<"strikes"> | Date | string | null
     appealed?: BoolWithAggregatesFilter<"strikes"> | boolean
+    appealedAt?: DateTimeNullableWithAggregatesFilter<"strikes"> | Date | string | null
+    appealNote?: StringNullableWithAggregatesFilter<"strikes"> | string | null
     revokedAt?: DateTimeNullableWithAggregatesFilter<"strikes"> | Date | string | null
     adminId?: StringNullableWithAggregatesFilter<"strikes"> | string | null
   }
@@ -38870,6 +38909,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     reports?: reportsCreateNestedManyWithoutStrikesInput
     user_strikes_adminIdTouser?: userCreateNestedOneWithoutStrikes_strikes_adminIdTouserInput
@@ -38891,6 +38932,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
     reports?: reportsUncheckedCreateNestedManyWithoutStrikesInput
@@ -38908,6 +38951,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     reports?: reportsUpdateManyWithoutStrikesNestedInput
     user_strikes_adminIdTouser?: userUpdateOneWithoutStrikes_strikes_adminIdTouserNestedInput
@@ -38929,6 +38974,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
     reports?: reportsUncheckedUpdateManyWithoutStrikesNestedInput
@@ -38948,6 +38995,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
   }
@@ -38964,6 +39013,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
@@ -38981,6 +39032,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
   }
@@ -41573,6 +41626,8 @@ export namespace Prisma {
     issuedAt?: SortOrder
     expiresAt?: SortOrder
     appealed?: SortOrder
+    appealedAt?: SortOrder
+    appealNote?: SortOrder
     revokedAt?: SortOrder
     adminId?: SortOrder
   }
@@ -41595,6 +41650,8 @@ export namespace Prisma {
     issuedAt?: SortOrder
     expiresAt?: SortOrder
     appealed?: SortOrder
+    appealedAt?: SortOrder
+    appealNote?: SortOrder
     revokedAt?: SortOrder
     adminId?: SortOrder
   }
@@ -41613,6 +41670,8 @@ export namespace Prisma {
     issuedAt?: SortOrder
     expiresAt?: SortOrder
     appealed?: SortOrder
+    appealedAt?: SortOrder
+    appealNote?: SortOrder
     revokedAt?: SortOrder
     adminId?: SortOrder
   }
@@ -46834,6 +46893,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     reports?: reportsCreateNestedManyWithoutStrikesInput
     user_strikes_adminIdTouser?: userCreateNestedOneWithoutStrikes_strikes_adminIdTouserInput
@@ -46853,6 +46914,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
     reports?: reportsUncheckedCreateNestedManyWithoutStrikesInput
@@ -47334,6 +47397,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFilter<"strikes"> | Date | string
     expiresAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     appealed?: BoolFilter<"strikes"> | boolean
+    appealedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
+    appealNote?: StringNullableFilter<"strikes"> | string | null
     revokedAt?: DateTimeNullableFilter<"strikes"> | Date | string | null
     adminId?: StringNullableFilter<"strikes"> | string | null
   }
@@ -50794,6 +50859,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     user_strikes_adminIdTouser?: userCreateNestedOneWithoutStrikes_strikes_adminIdTouserInput
     channels?: channelsCreateNestedOneWithoutStrikesInput
@@ -50814,6 +50881,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
   }
@@ -51319,6 +51388,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     user_strikes_adminIdTouser?: userUpdateOneWithoutStrikes_strikes_adminIdTouserNestedInput
     channels?: channelsUpdateOneWithoutStrikesNestedInput
@@ -51339,6 +51410,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
   }
@@ -53450,6 +53523,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     reports?: reportsCreateNestedManyWithoutStrikesInput
     channels?: channelsCreateNestedOneWithoutStrikesInput
@@ -53470,6 +53545,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     reports?: reportsUncheckedCreateNestedManyWithoutStrikesInput
   }
@@ -53496,6 +53573,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     reports?: reportsCreateNestedManyWithoutStrikesInput
     user_strikes_adminIdTouser?: userCreateNestedOneWithoutStrikes_strikes_adminIdTouserInput
@@ -53515,6 +53594,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
     reports?: reportsUncheckedCreateNestedManyWithoutStrikesInput
@@ -57013,6 +57094,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
   }
@@ -57272,6 +57355,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     reports?: reportsUpdateManyWithoutStrikesNestedInput
     user_strikes_adminIdTouser?: userUpdateOneWithoutStrikes_strikes_adminIdTouserNestedInput
@@ -57291,6 +57376,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
     reports?: reportsUncheckedUpdateManyWithoutStrikesNestedInput
@@ -57309,6 +57396,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
   }
@@ -58463,6 +58552,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
   }
 
@@ -58479,6 +58570,8 @@ export namespace Prisma {
     issuedAt?: Date | string
     expiresAt?: Date | string | null
     appealed?: boolean
+    appealedAt?: Date | string | null
+    appealNote?: string | null
     revokedAt?: Date | string | null
     adminId?: string | null
   }
@@ -59166,6 +59259,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     reports?: reportsUpdateManyWithoutStrikesNestedInput
     channels?: channelsUpdateOneWithoutStrikesNestedInput
@@ -59186,6 +59281,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     reports?: reportsUncheckedUpdateManyWithoutStrikesNestedInput
   }
@@ -59204,6 +59301,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
@@ -59219,6 +59318,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     reports?: reportsUpdateManyWithoutStrikesNestedInput
     user_strikes_adminIdTouser?: userUpdateOneWithoutStrikes_strikes_adminIdTouserNestedInput
@@ -59238,6 +59339,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
     reports?: reportsUncheckedUpdateManyWithoutStrikesNestedInput
@@ -59256,6 +59359,8 @@ export namespace Prisma {
     issuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     expiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     appealed?: BoolFieldUpdateOperationsInput | boolean
+    appealedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    appealNote?: NullableStringFieldUpdateOperationsInput | string | null
     revokedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     adminId?: NullableStringFieldUpdateOperationsInput | string | null
   }

@@ -326,6 +326,8 @@ model strikes {
   issuedAt                   DateTime   @default(now())
   expiresAt                  DateTime?
   appealed                   Boolean    @default(false)
+  appealedAt                 DateTime?
+  appealNote                 String?
   revokedAt                  DateTime?
   adminId                    String?
   reports                    reports[]

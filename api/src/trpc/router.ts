@@ -206,9 +206,39 @@ const enforcePlaylistOwnership = t.middleware(
     },
 );
 
+import { AuditService } from "../services/AuditService.js";
+
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 
 export const adminProcedure = t.procedure.use(enforceUserIsAdmin);
+
+/**
+ * Admin procedure that injects an `audit` function into the context
+ * for easy logging of administrative actions with IP/UserAgent.
+ */
+export const auditedAdminProcedure = adminProcedure.use(async ({ ctx, next }) => {
+    const audit = (
+        action: string,
+        resource: string,
+        resourceId: string,
+        opts?: {
+            reason?: string;
+            metadata?: Record<string, unknown>;
+            targetUserId?: string;
+        },
+    ) =>
+        AuditService.log({
+            actorId: ctx.session.user.id,
+            action,
+            resource,
+            resourceId,
+            ipAddress: ctx.req?.ip,
+            userAgent: ctx.req?.headers ? ctx.req.headers["user-agent"] : undefined,
+            ...opts,
+        });
+
+    return next({ ctx: { ...ctx, audit } });
+});
 
 export const channelProcedure = protectedProcedure
     .input(z.object({ channelId: z.string() }))
@@ -233,6 +263,10 @@ import { historyRouter } from "./routers/history.js";
 import { notificationRouter } from "./routers/notification.js";
 import { searchRouter } from "./routers/search.js";
 import { engagementRouter } from "./routers/engagement.js";
+import { reportRouter } from "./routers/report.js";
+import { strikeRouter } from "./routers/strike.js";
+import { adminRouter } from "./routers/admin.js";
+import { communityRouter } from "./routers/community.js";
 import prisma from "../lib/prisma.js";
 import { z } from "zod";
 
@@ -251,6 +285,10 @@ export const appRouter = router({
     notification: notificationRouter,
     search: searchRouter,
     engagement: engagementRouter,
+    report: reportRouter,
+    strike: strikeRouter,
+    admin: adminRouter,
+    community: communityRouter,
     health: publicProcedure.query(() => {
         return { status: "ok", timestamp: new Date().toISOString() };
     }),

@@ -217,6 +217,84 @@ export function startSchedulerWorker(): Worker {
     return worker;
 }
 
+// ─── Fan-out Worker ──────────────────────────────────────────────────────────
+
+async function handleFanout(job: Job) {
+    const { channelId, videoId, title, thumbnailUrl, channelName } = job.data;
+    let cursor: string | undefined;
+    const CHUNK = 1000;
+
+    while (true) {
+        const subs = await prisma.subscriptions.findMany({
+            where: { channelId, notificationLevel: { not: "NONE" } },
+            take: CHUNK,
+            ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+            select: { id: true, subscriberId: true },
+            orderBy: { id: "asc" },
+        });
+        
+        if (!subs.length) break;
+        cursor = subs[subs.length - 1].id;
+
+        const subIds = subs.map((s: { subscriberId: string }) => s.subscriberId);
+
+        // Check user-level notification_settings.newVideos opt-out
+        const optedOut = await prisma.notification_settings.findMany({
+            where: { userId: { in: subIds }, newVideos: false },
+            select: { userId: true },
+        });
+        const optedOutSet = new Set(optedOut.map((o: { userId: string }) => o.userId));
+        const eligible = subIds.filter((id: string) => !optedOutSet.has(id));
+
+        if (eligible.length > 0) {
+            await prisma.notifications.createMany({
+                data: eligible.map((userId: string) => ({
+                    userId,
+                    type: "NEW_VIDEO",
+                    title: `${channelName ?? "Someone"} uploaded a new video`,
+                    message: title ?? "A channel you subscribed to uploaded a new video",
+                    videoId,
+                    channelId,
+                    thumbnailUrl,
+                    actionUrl: `/watch/${videoId}`,
+                })),
+                skipDuplicates: true, // Safety against retries
+            });
+        }
+
+        if (subs.length < CHUNK) break; // Last page
+    }
+}
+
+export function startFanoutWorker(): Worker {
+    const worker = new Worker(
+        QUEUES.NEW_VIDEO_FANOUT,
+        async (job) => {
+            if (job.name === JOBS.FANOUT_NEW_VIDEO) {
+                await handleFanout(job);
+            } else {
+                console.warn(`[FanoutWorker] Unknown job: ${job.name}`);
+            }
+        },
+        {
+            connection: getRedisConnection(),
+            concurrency: 5,
+        },
+    );
+
+    worker.on("ready", () => console.log("[FanoutWorker] 🟢 Ready"));
+    worker.on("error", (err) => console.error("[FanoutWorker] 🔴 Error:", err));
+    worker.on("completed", (job) =>
+        console.log(`[FanoutWorker] ✅ ${job.id} done`),
+    );
+    worker.on("failed", (job, err) =>
+        console.error(`[FanoutWorker] ❌ Job ${job?.id} failed: ${err.message}`),
+    );
+
+    console.log("[FanoutWorker] Started — queue:", QUEUES.NEW_VIDEO_FANOUT);
+    return worker;
+}
+
 // ─── Cron Job Registration ────────────────────────────────────────────────────
 
 export async function registerRepeatableJobs(): Promise<void> {

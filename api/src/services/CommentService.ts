@@ -668,6 +668,134 @@ export class CommentService {
     }
 
     /**
+     * Edit a comment's content.
+     */
+    static async editComment(commentId: string, userId: string, content: string) {
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { userId: true, videoId: true },
+        });
+
+        if (!comment || comment.userId !== userId) {
+            throw new Error("Unauthorized to edit this comment");
+        }
+
+        const updated = await prisma.comments.update({
+            where: { id: commentId },
+            data: { content, isEdited: true },
+        });
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(comment.videoId, "TOP"),
+            this.KEYS.list(comment.videoId, "NEWEST"),
+        );
+
+        return updated;
+    }
+
+    /**
+     * Pin or unpin a comment. Only the video owner can do this.
+     */
+    static async pinComment(commentId: string, callerUserId: string, videoId: string) {
+        // Verify caller owns the video
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: { channels: { select: { userId: true } } },
+        });
+
+        if (!video || video.channels.userId !== callerUserId) {
+            throw new Error("Unauthorized to pin comments on this video");
+        }
+
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { isPinned: true, videoId: true },
+        });
+
+        if (!comment || comment.videoId !== videoId) {
+            throw new Error("Comment does not belong to this video");
+        }
+
+        const newPinnedState = !comment.isPinned;
+
+        await prisma.$transaction([
+            // Unpin all other comments for this video
+            prisma.comments.updateMany({
+                where: { videoId, isPinned: true },
+                data: { isPinned: false },
+            }),
+            // Set new pinned state
+            prisma.comments.update({
+                where: { id: commentId },
+                data: { isPinned: newPinnedState },
+            }),
+        ]);
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(videoId, "TOP"),
+            this.KEYS.list(videoId, "NEWEST"),
+        );
+
+        return { isPinned: newPinnedState };
+    }
+
+    /**
+     * Heart or unheart a comment. Only the video owner can do this.
+     */
+    static async heartComment(commentId: string, callerUserId: string, videoId: string) {
+        // Verify caller owns the video
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: { title: true, thumbnailUrl: true, channels: { select: { userId: true } } },
+        });
+
+        if (!video || video.channels.userId !== callerUserId) {
+            throw new Error("Unauthorized to heart comments on this video");
+        }
+
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { isHearted: true, videoId: true, userId: true },
+        });
+
+        if (!comment || comment.videoId !== videoId) {
+            throw new Error("Comment does not belong to this video");
+        }
+
+        const newHeartedState = !comment.isHearted;
+
+        const updated = await prisma.comments.update({
+            where: { id: commentId },
+            data: { isHearted: newHeartedState },
+        });
+
+        // Notify if hearting
+        if (newHeartedState && comment.userId !== callerUserId) {
+            await NotificationService.notify({
+                userId: comment.userId,
+                actorId: callerUserId,
+                type: "COMMENT_LIKE", // Reusing COMMENT_LIKE type for owner heart
+                title: "Creator Loved Your Comment!",
+                message: `The creator loved your comment on "${video.title}"`,
+                videoId: videoId,
+                commentId: commentId,
+                thumbnailUrl: video.thumbnailUrl || undefined,
+                actionUrl: `/watch/${videoId}?lc=${commentId}`,
+            }).catch(e => console.error("Failed to send heart notification", e));
+        }
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(videoId, "TOP"),
+            this.KEYS.list(videoId, "NEWEST"),
+        );
+
+        return { isHearted: newHeartedState };
+    }
+
+    /**
      * Get a single comment by ID, fully hydrated with user and reaction state.
      * Used for highlighting specific linked comments (e.g. from notifications).
      */

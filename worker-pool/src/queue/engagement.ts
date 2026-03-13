@@ -5,7 +5,7 @@ import {
     RedisStreamConsumer,
     type StreamMessage,
 } from "../lib/StreamingConsumer.js";
-import { STREAMS } from "./definitions.js";
+import { STREAMS, JOBS, newVideoFanoutQueue } from "./definitions.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -670,6 +670,123 @@ async function handleCommentEngagementBatch(
     console.log(`[CommentEngagementWorker] Processed ${ids.length} events`);
 }
 
+// ─── New Video Notification Fan-out ───────────────────────────────────────────
+
+async function handleNewVideoStreamBatch(
+    messages: StreamMessage[],
+    consumer: RedisStreamConsumer,
+): Promise<void> {
+    const ids: string[] = [];
+    for (const { id, fields } of messages) {
+        ids.push(id);
+        try {
+            const raw = fields[1];
+            const data = JSON.parse(raw);
+            const { videoId } = data;
+
+            if (!videoId) continue;
+
+            // Dedup: We rely EXCLUSIVELY on BullMQ's native deduplication mechanism
+            // via the `jobId` parameter. Doing a `redis.set NX` here would swallow
+            // retries in the event of a worker crash between Redis success and BullMQ enqueue.
+            await newVideoFanoutQueue.add(JOBS.FANOUT_NEW_VIDEO, data, {
+                jobId: `fanout:${videoId}`, 
+            });
+        } catch (err) {
+            console.warn("[NewVideoWorker] Bad message:", id, err);
+        }
+    }
+    
+    if (ids.length > 0) {
+        await consumer.ack(...ids);
+        console.log(`[NewVideoWorker] Dispatched ${ids.length} fanout jobs`);
+    }
+}
+
+// ─── Subscription Write-Behind Worker ────────────────────────────────────────
+
+/**
+ * Processes subscription events from the "queue:subscriptions" stream.
+ * Performs the actual DB writes (upsert subscription, update subscriberCount)
+ * and fires the NEW_SUBSCRIBER notification. Handles both SUBSCRIBE and UNSUBSCRIBE.
+ */
+async function handleSubscriptionBatch(
+    messages: StreamMessage[],
+    consumer: RedisStreamConsumer,
+): Promise<void> {
+    const ids: string[] = [];
+
+    for (const { id, fields } of messages) {
+        ids.push(id);
+        try {
+            const raw = fields[1];
+            const data = JSON.parse(raw) as {
+                subscriberId: string;
+                channelId: string;
+                action: "SUBSCRIBE" | "UNSUBSCRIBE";
+            };
+
+            const { subscriberId, channelId, action } = data;
+
+            if (action === "SUBSCRIBE") {
+                // Upsert: create if not exists (idempotent on duplicates via P2002 catch)
+                try {
+                    await prisma.subscriptions.create({ data: { subscriberId, channelId } });
+                } catch (e: any) {
+                    if (e.code !== "P2002") throw e; // ignore duplicate
+                }
+
+                // Recount atomically from source of truth
+                await prisma.$executeRaw`
+                    UPDATE channels
+                    SET "subscriberCount" = (
+                        SELECT COUNT(*) FROM subscriptions WHERE "channelId" = ${channelId}
+                    )
+                    WHERE id = ${channelId}
+                `;
+
+                // Fire notification (non-blocking, worker handles retries)
+                const channel = await prisma.channels.findUnique({
+                    where: { id: channelId },
+                    select: { userId: true, handle: true, name: true },
+                });
+
+                if (channel && channel.userId !== subscriberId) {
+                    await prisma.notifications.create({
+                        data: {
+                            userId: channel.userId,
+                            actorId: subscriberId,
+                            type: "NEW_SUBSCRIBER",
+                            title: "New Subscriber",
+                            message: "subscribed to your channel",
+                            channelId,
+                            actionUrl: `/@${channel.handle}`,
+                            groupKey: `NEW_SUBSCRIBER:${channelId}:${new Date().toISOString().slice(0, 10)}`,
+                        },
+                    });
+                }
+            } else {
+                // UNSUBSCRIBE: delete + recount atomically
+                await prisma.subscriptions.deleteMany({ where: { subscriberId, channelId } });
+                await prisma.$executeRaw`
+                    UPDATE channels
+                    SET "subscriberCount" = GREATEST(0, (
+                        SELECT COUNT(*) FROM subscriptions WHERE "channelId" = ${channelId}
+                    ))
+                    WHERE id = ${channelId}
+                `;
+            }
+        } catch (err) {
+            console.warn("[SubscriptionWorker] Failed to process message:", id, err);
+        }
+    }
+
+    if (ids.length > 0) {
+        await consumer.ack(...ids);
+        console.log(`[SubscriptionWorker] Processed ${ids.length} subscription events`);
+    }
+}
+
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
 export function startEngagementWorkers(): () => void {
@@ -678,6 +795,7 @@ export function startEngagementWorkers(): () => void {
             streamKey: stream,
             groupName: GROUP,
             consumerName: `${CONSUMER_BASE}:${suffix}`,
+            pendingMaxAgeMs: 60_000,
         });
 
     const history = mk(STREAMS.HISTORY, "history");
@@ -687,6 +805,8 @@ export function startEngagementWorkers(): () => void {
         STREAMS.COMMENT_ENGAGEMENT,
         "comment-engagement",
     );
+    const newVideo = mk(STREAMS.NEW_VIDEO_NOTIFICATIONS, "new-video");
+    const subscriptions = mk(STREAMS.SUBSCRIPTIONS, "subscriptions");
 
     // Consumers auto-restart on fatal errors (handled in StreamingConsumer)
     history
@@ -703,13 +823,19 @@ export function startEngagementWorkers(): () => void {
         .catch((e) =>
             console.error("[CommentEngagementWorker] Fatal:", e),
         );
+    newVideo
+        .run((msgs) => handleNewVideoStreamBatch(msgs, newVideo))
+        .catch((e) => console.error("[NewVideoWorker] Fatal:", e));
+    subscriptions
+        .run((msgs) => handleSubscriptionBatch(msgs, subscriptions))
+        .catch((e) => console.error("[SubscriptionWorker] Fatal:", e));
 
     const flushInterval = setInterval(flushViews, 10_000);
     flushViews().catch((e) =>
         console.error("[ViewFlush] Startup error:", e),
     );
 
-    console.log("[EngagementWorkers] All 4 stream consumers started");
+    console.log("[EngagementWorkers] All 6 stream consumers started");
 
     return () => {
         clearInterval(flushInterval);
@@ -717,6 +843,8 @@ export function startEngagementWorkers(): () => void {
         engagement.stop();
         commentCount.stop();
         commentEngagement.stop();
+        newVideo.stop();
+        subscriptions.stop();
         console.log("[EngagementWorkers] Stopped");
     };
 }

@@ -2,7 +2,7 @@ import "./env.js"; // Validate env first — fails fast if vars missing
 
 import { startEngagementWorkers } from "./queue/engagement.js";
 import { startEmailWorker } from "./queue/email.js";
-import { startSchedulerWorker, registerRepeatableJobs } from "./queue/scheduler.js";
+import { startSchedulerWorker, startFanoutWorker, registerRepeatableJobs } from "./queue/scheduler.js";
 import { closeQueues } from "./queue/definitions.js";
 import redis from "./lib/redis.js";
 import { prisma } from "./lib/prisma.js";
@@ -14,6 +14,7 @@ console.log("[Worker Pool] 🚀 Starting...");
 const stopEngagement = startEngagementWorkers();
 const emailWorker = startEmailWorker();
 const schedulerWorker = startSchedulerWorker();
+const fanoutWorker = startFanoutWorker();
 
 registerRepeatableJobs().catch((err) => {
     console.error("[Worker Pool] ⚠️ Failed to register repeatable jobs:", err);
@@ -35,7 +36,7 @@ const gracefulShutdown = async (signal: string) => {
     stopEngagement();
 
     // 2. Stop BullMQ workers (finish current job, then close)
-    await Promise.allSettled([emailWorker.close(), schedulerWorker.close()]);
+    await Promise.allSettled([emailWorker.close(), schedulerWorker.close(), fanoutWorker.close()]);
 
     // 3. Close BullMQ queue connections
     await closeQueues().catch((e) => console.warn("[Worker Pool] Queue close warning:", e));
@@ -54,3 +55,4 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("unhandledRejection", (reason) => {
     console.error("[Worker Pool] ⚠️ Unhandled rejection:", reason);
 });
+
