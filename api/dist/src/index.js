@@ -23,8 +23,8 @@ import { prisma } from "./lib/prisma.js";
 import redis, { bullMQRedis } from "./lib/redis.js";
 import { redisSubscriptionManager } from "./lib/ws/redisSubscription.js";
 import { REDIS_KEYS } from "./lib/ws/definitions.js";
-const port = parseInt(env.PORT || "4000", 10);
-const origin = env.CORS_ORIGIN || "http://localhost:3000";
+const port = env.PORT;
+const origin = env.CORS_ORIGIN;
 const server = Fastify({
     logger: true,
     maxParamLength: 5000,

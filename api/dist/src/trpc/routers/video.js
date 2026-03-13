@@ -41,7 +41,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { on } from "events";
-import { router, protectedProcedure, videoProcedure, channelProcedure, } from "../router.js";
+import { router, protectedProcedure, publicProcedure, videoProcedure, channelProcedure, } from "../router.js";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 import config from "../../lib/config.js";
@@ -49,8 +49,6 @@ import { createMultipartUpload, getPresignedPartUrl, completeMultipartUpload, ab
 import { cacheVideoStatus, cacheVideoMetadata, deleteVideoMetadata, deleteAggregateTracker, getCachedVideoStatus, REDIS_KEYS, VideoStatusEventSchema, } from "../../lib/ws/definitions";
 import { transcodeQueue, schedulerQueue, JOBS, } from "../../lib/queue-definitions.js";
 import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
-import * as path from "path";
-import * as fs from "fs";
 import { StreamService } from "../../services/StreamService";
 import redis from "../../lib/redis";
 // --- Helpers ---
@@ -503,18 +501,16 @@ export const videoRouter = router({
         const { uploadId } = input;
         console.log(`[Pipeline] 🛑 Aborting Multipart Upload for ${video.id}...`);
         yield abortMultipartUpload(video.id, uploadId);
+        // Clean up any potential orphaned S3 parts or source file that might have been pushed
+        yield deleteS3Prefix(`raw-videos/${video.id}/`).catch((err) => {
+            console.warn(`[Pipeline] ⚠️ Failed to delete S3 prefix during abort:`, err);
+        });
         // Remove from queue if present
         try {
             const job = yield transcodeQueue.getJob(video.id);
             if (job) {
                 yield job.remove();
                 console.log(`[Pipeline] 🗑️ Removed pending job for ${video.id}`);
-            }
-            // Clean local cache
-            const cacheDir = path.join(config.tempDir, video.id);
-            if (fs.existsSync(cacheDir)) {
-                fs.rmSync(cacheDir, { recursive: true, force: true });
-                console.log(`[Pipeline] 🧹 Cleaned local input cache for ${video.id}`);
             }
         }
         catch (e) {
@@ -779,6 +775,18 @@ export const videoRouter = router({
                 scheduledAt: null,
             },
         });
+        // If transitioning to PUBLIC, set publishedAt for videos that didn't have it
+        if (visibility === "PUBLIC" && previouslyNonPublicIds.length > 0) {
+            yield prisma.videos.updateMany({
+                where: {
+                    id: { in: previouslyNonPublicIds },
+                    publishedAt: null, // Only set if not already set (safety)
+                },
+                data: {
+                    publishedAt: new Date(),
+                },
+            });
+        }
         // Update channel stats asynchronously to prevent blocking the UI
         updateChannelStats(channelId).catch((err) => console.error("[Video] Failed to update channel stats:", err));
         // NEW_VIDEO notification: only for videos that were previously non-public
@@ -874,9 +882,15 @@ export const videoRouter = router({
         if (otherData.visibility && otherData.visibility !== "SCHEDULED") {
             otherData.scheduledAt = null;
         }
+        // Calculate publishedAt: set if transitioning to PUBLIC and not already set
+        const transitioningToPublic = otherData.visibility === "PUBLIC" &&
+            ctx.video.visibility !== "PUBLIC";
+        const publishedAt = transitioningToPublic && !ctx.video.publishedAt
+            ? new Date()
+            : undefined;
         const updatedVideo = yield prisma.videos.update({
             where: { id: video.id },
-            data: Object.assign(Object.assign(Object.assign({}, otherData), (tags && {
+            data: Object.assign(Object.assign(Object.assign(Object.assign({}, otherData), { publishedAt }), (tags && {
                 tags: {
                     set: [], // Disconnect all existing tags
                     connectOrCreate: tags.map((tag) => ({
@@ -1105,5 +1119,93 @@ export const videoRouter = router({
         const { videoId, seconds } = input;
         yield StreamService.addHistoryItem(userId, videoId, seconds);
         return { success: true };
+    })),
+    setChapters: videoProcedure
+        .input(z.object({
+        videoId: z.string(),
+        chapters: z.array(z.object({
+            title: z.string().max(100),
+            startTime: z.number().int().min(0),
+        })),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        const { videoId, chapters } = input;
+        yield prisma.$transaction([
+            prisma.video_chapters.deleteMany({ where: { videoId } }),
+            prisma.video_chapters.createMany({
+                data: chapters.map((c) => (Object.assign({ videoId }, c))),
+            }),
+        ]);
+        return { success: true };
+    })),
+    getChapters: publicProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        return prisma.video_chapters.findMany({
+            where: { videoId: input.videoId },
+            orderBy: { startTime: "asc" },
+        });
+    })),
+    addCard: videoProcedure
+        .input(z.object({
+        videoId: z.string(),
+        type: z.enum(["VIDEO", "PLAYLIST", "CHANNEL", "LINK", "POLL"]),
+        title: z.string().max(100).optional(),
+        startTime: z.number().int().min(0),
+        endTime: z.number().int().optional(),
+        targetVideoId: z.string().optional(),
+        targetPlaylistId: z.string().optional(),
+        targetChannelId: z.string().optional(),
+        targetUrl: z.string().url().max(500).optional(),
+        pollOptions: z.any().optional(),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        const { videoId } = input, data = __rest(input, ["videoId"]);
+        return prisma.video_cards.create({
+            data: Object.assign({ videoId }, data),
+        });
+    })),
+    updateCard: videoProcedure
+        .input(z.object({
+        videoId: z.string(),
+        cardId: z.string(),
+        title: z.string().max(100).optional(),
+        startTime: z.number().int().min(0).optional(),
+        endTime: z.number().int().optional(),
+        targetVideoId: z.string().optional(),
+        targetPlaylistId: z.string().optional(),
+        targetChannelId: z.string().optional(),
+        targetUrl: z.string().url().max(500).optional(),
+        pollOptions: z.any().optional(),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        const { videoId, cardId } = input, data = __rest(input, ["videoId", "cardId"]);
+        const existing = yield prisma.video_cards.findUnique({ where: { id: cardId } });
+        if (!existing || existing.videoId !== videoId) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+        }
+        return prisma.video_cards.update({
+            where: { id: cardId },
+            data,
+        });
+    })),
+    deleteCard: videoProcedure
+        .input(z.object({ videoId: z.string(), cardId: z.string() }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        const { videoId, cardId } = input;
+        const existing = yield prisma.video_cards.findUnique({ where: { id: cardId } });
+        if (!existing || existing.videoId !== videoId) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+        }
+        yield prisma.video_cards.delete({ where: { id: cardId } });
+        return { success: true };
+    })),
+    getCards: publicProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
+        return prisma.video_cards.findMany({
+            where: { videoId: input.videoId },
+            orderBy: { startTime: "asc" },
+        });
     })),
 });

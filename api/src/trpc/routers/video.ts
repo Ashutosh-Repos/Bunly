@@ -1011,6 +1011,19 @@ export const videoRouter = router({
                 },
             });
 
+            // If transitioning to PUBLIC, set publishedAt for videos that didn't have it
+            if (visibility === "PUBLIC" && previouslyNonPublicIds.length > 0) {
+                await prisma.videos.updateMany({
+                    where: {
+                        id: { in: previouslyNonPublicIds },
+                        publishedAt: null, // Only set if not already set (safety)
+                    },
+                    data: {
+                        publishedAt: new Date(),
+                    },
+                });
+            }
+
             // Update channel stats asynchronously to prevent blocking the UI
             updateChannelStats(channelId).catch((err) =>
                 console.error("[Video] Failed to update channel stats:", err),
@@ -1136,10 +1149,20 @@ export const videoRouter = router({
                 otherData.scheduledAt = null;
             }
 
+            // Calculate publishedAt: set if transitioning to PUBLIC and not already set
+            const transitioningToPublic = 
+                otherData.visibility === "PUBLIC" && 
+                ctx.video.visibility !== "PUBLIC";
+            
+            const publishedAt = transitioningToPublic && !ctx.video.publishedAt
+                ? new Date()
+                : undefined;
+
             const updatedVideo = await prisma.videos.update({
                 where: { id: video.id },
                 data: {
                     ...otherData,
+                    publishedAt,
                     ...(tags && {
                         tags: {
                             set: [], // Disconnect all existing tags

@@ -95,4 +95,20 @@ export const userRouter = router({
             });
         }
     })),
+    deleteAccount: protectedProcedure.mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx }) {
+        const userId = ctx.session.user.id;
+        yield prisma.$transaction([
+            // Suspend all owned channels so their content doesn't appear in feeds
+            prisma.channels.updateMany({
+                where: { userId, deletedAt: null },
+                data: { status: "SUSPENDED", deletedAt: new Date() },
+            }),
+            // Soft-delete the user
+            prisma.user.update({
+                where: { id: userId },
+                data: { deletedAt: new Date() },
+            }),
+        ]);
+        return { success: true };
+    })),
 });

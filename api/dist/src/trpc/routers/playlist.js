@@ -554,15 +554,18 @@ export const playlistRouter = router({
             authorHandle: ((_c = playlist.channels) === null || _c === void 0 ? void 0 : _c.handle) || null,
             videos: playlist.playlist_videos
                 .filter((pv) => pv.videos && pv.videos.id)
-                .map((pv) => ({
-                id: pv.videos.id,
-                title: pv.videos.title,
-                duration: pv.videos.duration,
-                thumbnailUrl: pv.videos.thumbnailUrl,
-                channelName: pv.videos.channels.name,
-                channelHandle: pv.videos.channels.handle,
-                position: pv.position,
-            })),
+                .map((pv) => {
+                var _a, _b;
+                return ({
+                    id: pv.videos.id,
+                    title: pv.videos.title,
+                    duration: pv.videos.duration,
+                    thumbnailUrl: pv.videos.thumbnailUrl,
+                    channelName: ((_a = pv.videos.channels) === null || _a === void 0 ? void 0 : _a.name) || null,
+                    channelHandle: ((_b = pv.videos.channels) === null || _b === void 0 ? void 0 : _b.handle) || null,
+                    position: pv.position,
+                });
+            }),
         };
     })),
     getPublicChannelPlaylists: publicProcedure

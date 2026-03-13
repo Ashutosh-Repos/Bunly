@@ -176,4 +176,43 @@ export class StreamService {
             }
         });
     }
+    /**
+     * Add a subscription action to the stream.
+     * 1. Updates Cache (Fast Lane Read) - TTL 30 days
+     * 2. Pushes to Redis Stream (Write Behind)
+     */
+    static addSubscription(subscriberId, channelId, action) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const subKey = `user:subscription:${subscriberId}:${channelId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
+            // 1. Update User Cache for immediate UI feedback. Long TTL because subscriptions are persistent.
+            pipeline.set(subKey, action, "EX", 2592000); // 30 days
+            // 2. Push to Stream for the worker
+            pipeline.xadd("queue:subscriptions", "MAXLEN", "~", 1000000, "*", "data", JSON.stringify({
+                subscriberId,
+                channelId,
+                action,
+                timestamp,
+            }));
+            yield pipeline.exec();
+        });
+    }
+    /**
+     * Get user's current subscription status from Cache.
+     * Returns "SUBSCRIBE" | "UNSUBSCRIBE" | null (if not in cache).
+     */
+    static getSubscriptionStatus(subscriberId, channelId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const subKey = `user:subscription:${subscriberId}:${channelId}`;
+                const cached = yield redis.get(subKey);
+                return cached;
+            }
+            catch (e) {
+                console.warn("Failed to get subscription from cache", e);
+                return null;
+            }
+        });
+    }
 }

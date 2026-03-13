@@ -173,10 +173,12 @@ export class FeedService {
                             GROUP BY "channelId"
                         ),
                         candidate_pool AS (
-                            SELECT id FROM videos
-                            WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL
-                              AND "isShort" = ${isShort} AND "trendingScore" > 0
-                            ORDER BY "trendingScore" DESC LIMIT 500
+                            SELECT v.id FROM videos v
+                            INNER JOIN channels c ON v."channelId" = c.id
+                            WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL
+                              AND c.status = 'ACTIVE'
+                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0
+                            ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
                             v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
@@ -211,14 +213,15 @@ export class FeedService {
                             GROUP BY "channelId"
                         ),
                         candidate_pool AS (
-                            (SELECT id FROM videos WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL AND "isShort" = ${isShort} ORDER BY "hotScore" DESC LIMIT 500)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."hotScore" DESC LIMIT 500)
                             UNION
-                            (SELECT id FROM videos WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL AND "isShort" = ${isShort} ORDER BY "publishedAt" DESC NULLS LAST LIMIT 200)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
                             UNION
                             (
                                 SELECT v.id FROM videos v
+                                INNER JOIN channels c ON v."channelId" = c.id
                                 INNER JOIN user_cats uc ON v."categoryId" = uc."categoryId"
-                                WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND v."isShort" = ${isShort} AND uc.affinity > 1.0
+                                WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} AND uc.affinity > 1.0
                                 ORDER BY v."hotScore" DESC LIMIT 500
                             )
                         )
@@ -245,10 +248,12 @@ export class FeedService {
                 if (onlyPositiveScore) {
                     videos = await prisma.$queryRaw<RawFeedRow[]>`
                         WITH candidate_pool AS (
-                            SELECT id FROM videos
-                            WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL
-                              AND "isShort" = ${isShort} AND "trendingScore" > 0
-                            ORDER BY "trendingScore" DESC LIMIT 500
+                            SELECT v.id FROM videos v
+                            INNER JOIN channels c ON v."channelId" = c.id
+                            WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL
+                              AND c.status = 'ACTIVE'
+                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0
+                            ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
                             v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
@@ -268,9 +273,9 @@ export class FeedService {
                 } else {
                     videos = await prisma.$queryRaw<RawFeedRow[]>`
                         WITH candidate_pool AS (
-                            (SELECT id FROM videos WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL AND "isShort" = ${isShort} ORDER BY "hotScore" DESC LIMIT 500)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."hotScore" DESC LIMIT 500)
                             UNION
-                            (SELECT id FROM videos WHERE visibility = 'PUBLIC' AND "processingStatus" = 'READY' AND "deletedAt" IS NULL AND "isShort" = ${isShort} ORDER BY "publishedAt" DESC NULLS LAST LIMIT 200)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
                         )
                         SELECT
                             v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
@@ -346,6 +351,7 @@ export class FeedService {
                   AND v."processingStatus" = 'READY'
                   AND v."isShort" = ${isShort}
                   AND v."deletedAt" IS NULL
+                  AND c.status = 'ACTIVE'
                 ORDER BY COALESCE(v."publishedAt", v."createdAt") DESC, v.id ASC
                 LIMIT ${limit} OFFSET ${cursor};
             `;
@@ -408,16 +414,18 @@ export class FeedService {
                         SELECT "A" as tag_id FROM "_TagToVideo" WHERE "B" = ${videoId}
                     ),
                     candidate_pool AS (
-                        SELECT id FROM videos
-                        WHERE visibility = 'PUBLIC'
-                          AND "processingStatus" = 'READY'
-                          AND "deletedAt" IS NULL
-                          AND "isShort" = ${isShort}
-                          AND id != ${videoId}
+                        SELECT v.id FROM videos v
+                        INNER JOIN channels c ON v."channelId" = c.id
+                        WHERE v.visibility = 'PUBLIC'
+                          AND v."processingStatus" = 'READY'
+                          AND v."deletedAt" IS NULL
+                          AND c.status = 'ACTIVE'
+                          AND v."isShort" = ${isShort}
+                          AND v.id != ${videoId}
                         ORDER BY
-                          CASE WHEN "categoryId" = ${sourceVideo.categoryId} THEN 2 ELSE 0 END +
-                          CASE WHEN "channelId" = ${sourceVideo.channelId} THEN 1 ELSE 0 END DESC,
-                          "hotScore" DESC
+                          CASE WHEN v."categoryId" = ${sourceVideo.categoryId} THEN 2 ELSE 0 END +
+                          CASE WHEN v."channelId" = ${sourceVideo.channelId} THEN 1 ELSE 0 END DESC,
+                          v."hotScore" DESC
                         LIMIT 500
                     ),
                     candidate_tags AS (
@@ -455,16 +463,18 @@ export class FeedService {
                         SELECT "A" as tag_id FROM "_TagToVideo" WHERE "B" = ${videoId}
                     ),
                     candidate_pool AS (
-                        SELECT id FROM videos
-                        WHERE visibility = 'PUBLIC'
-                          AND "processingStatus" = 'READY'
-                          AND "deletedAt" IS NULL
-                          AND "isShort" = ${isShort}
-                          AND id != ${videoId}
+                        SELECT v.id FROM videos v
+                        INNER JOIN channels c ON v."channelId" = c.id
+                        WHERE v.visibility = 'PUBLIC'
+                          AND v."processingStatus" = 'READY'
+                          AND v."deletedAt" IS NULL
+                          AND c.status = 'ACTIVE'
+                          AND v."isShort" = ${isShort}
+                          AND v.id != ${videoId}
                         ORDER BY
-                          CASE WHEN "categoryId" = ${sourceVideo.categoryId} THEN 2 ELSE 0 END +
-                          CASE WHEN "channelId" = ${sourceVideo.channelId} THEN 1 ELSE 0 END DESC,
-                          "hotScore" DESC
+                          CASE WHEN v."categoryId" = ${sourceVideo.categoryId} THEN 2 ELSE 0 END +
+                          CASE WHEN v."channelId" = ${sourceVideo.channelId} THEN 1 ELSE 0 END DESC,
+                          v."hotScore" DESC
                         LIMIT 500
                     ),
                     candidate_tags AS (

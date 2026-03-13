@@ -113,6 +113,24 @@ export const commentRouter = router({
         yield CommentService.addReaction(userId, commentId, action, videoId);
         return { status: action };
     })),
+    edit: protectedProcedure
+        .input(z.object({
+        commentId: z.string(),
+        content: z.string().min(1).max(2000),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.editComment(input.commentId, ctx.session.user.id, input.content);
+    })),
+    pin: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.pinComment(input.commentId, ctx.session.user.id, input.videoId);
+    })),
+    heart: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.heartComment(input.commentId, ctx.session.user.id, input.videoId);
+    })),
     delete: protectedProcedure
         .input(z.object({ commentId: z.string() }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {

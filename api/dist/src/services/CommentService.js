@@ -361,6 +361,9 @@ export class CommentService {
             });
             // Invalidate Cache
             yield redis.del(this.KEYS.list(comment.videoId, "TOP"), this.KEYS.list(comment.videoId, "NEWEST"));
+            if (comment.parentId) {
+                yield redis.del(`comment:${comment.parentId}:replies:page1`);
+            }
             // Queue Comment Count Decrement
             const pipeline = redis.pipeline();
             pipeline.xadd(this.KEYS.countStream, "*", "type", "video", "entityId", comment.videoId, "delta", "-1");
@@ -464,6 +467,109 @@ export class CommentService {
                 console.error("Failed to batch fetch reactions", e);
             }
             return reactionMap;
+        });
+    }
+    /**
+     * Edit a comment's content.
+     */
+    static editComment(commentId, userId, content) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const comment = yield prisma.comments.findUnique({
+                where: { id: commentId },
+                select: { userId: true, videoId: true },
+            });
+            if (!comment || comment.userId !== userId) {
+                throw new Error("Unauthorized to edit this comment");
+            }
+            const updated = yield prisma.comments.update({
+                where: { id: commentId },
+                data: { content, isEdited: true },
+            });
+            // Invalidate caches
+            yield redis.del(this.KEYS.list(comment.videoId, "TOP"), this.KEYS.list(comment.videoId, "NEWEST"));
+            return updated;
+        });
+    }
+    /**
+     * Pin or unpin a comment. Only the video owner can do this.
+     */
+    static pinComment(commentId, callerUserId, videoId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Verify caller owns the video
+            const video = yield prisma.videos.findUnique({
+                where: { id: videoId },
+                select: { channels: { select: { userId: true } } },
+            });
+            if (!video || video.channels.userId !== callerUserId) {
+                throw new Error("Unauthorized to pin comments on this video");
+            }
+            const comment = yield prisma.comments.findUnique({
+                where: { id: commentId },
+                select: { isPinned: true, videoId: true },
+            });
+            if (!comment || comment.videoId !== videoId) {
+                throw new Error("Comment does not belong to this video");
+            }
+            const newPinnedState = !comment.isPinned;
+            yield prisma.$transaction([
+                // Unpin all other comments for this video
+                prisma.comments.updateMany({
+                    where: { videoId, isPinned: true },
+                    data: { isPinned: false },
+                }),
+                // Set new pinned state
+                prisma.comments.update({
+                    where: { id: commentId },
+                    data: { isPinned: newPinnedState },
+                }),
+            ]);
+            // Invalidate caches
+            yield redis.del(this.KEYS.list(videoId, "TOP"), this.KEYS.list(videoId, "NEWEST"));
+            return { isPinned: newPinnedState };
+        });
+    }
+    /**
+     * Heart or unheart a comment. Only the video owner can do this.
+     */
+    static heartComment(commentId, callerUserId, videoId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Verify caller owns the video
+            const video = yield prisma.videos.findUnique({
+                where: { id: videoId },
+                select: { title: true, thumbnailUrl: true, channels: { select: { userId: true } } },
+            });
+            if (!video || video.channels.userId !== callerUserId) {
+                throw new Error("Unauthorized to heart comments on this video");
+            }
+            const comment = yield prisma.comments.findUnique({
+                where: { id: commentId },
+                select: { isHearted: true, videoId: true, userId: true },
+            });
+            if (!comment || comment.videoId !== videoId) {
+                throw new Error("Comment does not belong to this video");
+            }
+            const newHeartedState = !comment.isHearted;
+            const updated = yield prisma.comments.update({
+                where: { id: commentId },
+                data: { isHearted: newHeartedState },
+            });
+            // Notify if hearting
+            if (newHeartedState && comment.userId !== callerUserId) {
+                yield NotificationService.notify({
+                    userId: comment.userId,
+                    actorId: callerUserId,
+                    type: "COMMENT_LIKE", // Reusing COMMENT_LIKE type for owner heart
+                    title: "Creator Loved Your Comment!",
+                    message: `The creator loved your comment on "${video.title}"`,
+                    videoId: videoId,
+                    commentId: commentId,
+                    thumbnailUrl: video.thumbnailUrl || undefined,
+                    actionUrl: `/watch/${videoId}?lc=${commentId}`,
+                }).catch(e => console.error("Failed to send heart notification", e));
+            }
+            // Invalidate caches
+            yield redis.del(this.KEYS.list(videoId, "TOP"), this.KEYS.list(videoId, "NEWEST"));
+            return { isHearted: newHeartedState };
         });
     }
     /**

@@ -7,6 +7,7 @@ const envSchema = z.object({
     NODE_ENV: z
         .enum(["development", "production", "test"])
         .default("development"),
+    DATABASE_URL: z.string().url(),
     // Redis infrastructure
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
     // S3 Storage infrastructure
@@ -70,6 +71,9 @@ if (!parsedEnv.success) {
 // Convert parsed schema to semantic object shape similar to old config
 export const config = {
     nodeEnv: parsedEnv.data.NODE_ENV,
+    db: {
+        url: parsedEnv.data.DATABASE_URL,
+    },
     redis: {
         url: parsedEnv.data.REDIS_URL,
     },

@@ -1,12 +1,13 @@
 import { Queue } from "bullmq";
 import { bullMQRedis } from "./redis.js";
 import config from "./config.js";
+import { env } from "../env.js";
 
 // ─── Build-time detection ────────────────────────────────────────────────────
 // Next.js sets NEXT_PHASE during build — skip heavy init during page collection
 const isBuildTime =
-    process.env.NEXT_PHASE === "phase-production-build" ||
-    (!process.env.BREVO_API_KEY && !process.env.REDIS_URL);
+    env.NEXT_PHASE === "phase-production-build" ||
+    (!config.email.brevoApiKey && !config.redis.url);
 
 // ─── Email Job Types ─────────────────────────────────────────────────────────
 interface EmailJob {
@@ -27,7 +28,7 @@ let emailQueue: Queue | null = null;
 // Lazy-init to avoid import-time crashes when Redis isn't available (build time)
 function getQueue(): Queue | null {
     if (emailQueue) return emailQueue;
-    if (!process.env.REDIS_URL || isBuildTime) return null;
+    if (!config.redis.url || isBuildTime) return null;
 
     try {
         emailQueue = new Queue(QUEUE_NAME, {
@@ -48,7 +49,7 @@ function getQueue(): Queue | null {
 
 // ─── Email Service ───────────────────────────────────────────────────────────
 
-const DEFAULT_FROM = process.env.EMAIL_FROM || "clashutosh04@gmail.com";
+const DEFAULT_FROM = config.email.from;
 
 class EmailService {
     constructor() {

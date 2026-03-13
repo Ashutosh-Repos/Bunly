@@ -58,7 +58,12 @@ export async function handleMergeManifest(job: Job) {
 
     const currentVideo = await prisma.videos.findUnique({
         where: { id: videoId },
-        select: { processingStatus: true, thumbnailUrl: true },
+        select: { 
+            processingStatus: true, 
+            thumbnailUrl: true, 
+            visibility: true,
+            publishedAt: true 
+        },
     });
 
     if (currentVideo?.processingStatus === "READY") {
@@ -76,6 +81,10 @@ export async function handleMergeManifest(job: Job) {
     const finalThumbnailUrl =
         currentVideo?.thumbnailUrl || thumbnailOptions[0] || null;
 
+    // Calculate publishedAt: set if PUBLIC and not already set
+    const shouldSetPublishedAt = 
+        currentVideo?.visibility === "PUBLIC" && !currentVideo.publishedAt;
+
     console.log(
         `[Pipeline] 💾 Updating Database for ${videoId} (Status: READY)...`,
     );
@@ -89,7 +98,7 @@ export async function handleMergeManifest(job: Job) {
             thumbnailOptions: thumbnailOptions,
             previewSprite: previewSprite || null,
             previewSpriteVtt: previewSpriteVtt || null,
-            publishedAt: new Date(),
+            publishedAt: shouldSetPublishedAt ? new Date() : undefined,
         },
     });
 

@@ -161,7 +161,7 @@ async function handleHistoryBatch(
             seenSet.has(`${v.userId}:${v.videoId}`),
         );
 
-        const ops: Parameters<typeof prisma.$transaction>[0] = [];
+        const ops: any[] = [];
 
         // New entries: create with initial values
         for (const v of newEntries) {
@@ -473,7 +473,7 @@ async function handleEngagementBatch(
                     data: {
                         userId: video.channels.userId,
                         actorId: like.userId,
-                        type: "LIKE",
+                        type: "VIDEO_LIKE",
                         title: "New Like",
                         message: `liked your video`,
                         videoId: like.videoId,
@@ -529,7 +529,7 @@ async function handleCommentCountBatch(
     }
 
     // FIX #5: Wrap both updates in a single $transaction to prevent partial ACK
-    const txOps: Parameters<typeof prisma.$transaction>[0] = [];
+    const txOps: any[] = [];
 
     if (vidDeltas.size) {
         const vIds = [...vidDeltas.keys()];

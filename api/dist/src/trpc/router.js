@@ -99,7 +99,7 @@ const enforceVideoOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 
     if (!result.success) {
         throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "channelId is required in input to use channelProcedure",
+            message: "videoId is required in input to use videoProcedure",
         });
     }
     const video = yield prisma.videos.findUnique({
@@ -153,8 +153,22 @@ const enforcePlaylistOwnership = t.middleware((_a) => __awaiter(void 0, [_a], vo
         ctx: Object.assign(Object.assign({}, ctx), { playlist, session: ctx.session }),
     });
 }));
+import { AuditService } from "../services/AuditService.js";
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 export const adminProcedure = t.procedure.use(enforceUserIsAdmin);
+/**
+ * Admin procedure that injects an `audit` function into the context
+ * for easy logging of administrative actions with IP/UserAgent.
+ */
+export const auditedAdminProcedure = adminProcedure.use((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next }) {
+    const audit = (action, resource, resourceId, opts) => {
+        var _a, _b;
+        return AuditService.log(Object.assign({ actorId: ctx.session.user.id, action,
+            resource,
+            resourceId, ipAddress: (_a = ctx.req) === null || _a === void 0 ? void 0 : _a.ip, userAgent: ((_b = ctx.req) === null || _b === void 0 ? void 0 : _b.headers) ? ctx.req.headers["user-agent"] : undefined }, opts));
+    };
+    return next({ ctx: Object.assign(Object.assign({}, ctx), { audit }) });
+}));
 export const channelProcedure = protectedProcedure
     .input(z.object({ channelId: z.string() }))
     .use(enforceChannelOwnership);
@@ -175,6 +189,10 @@ import { historyRouter } from "./routers/history.js";
 import { notificationRouter } from "./routers/notification.js";
 import { searchRouter } from "./routers/search.js";
 import { engagementRouter } from "./routers/engagement.js";
+import { reportRouter } from "./routers/report.js";
+import { strikeRouter } from "./routers/strike.js";
+import { adminRouter } from "./routers/admin.js";
+import { communityRouter } from "./routers/community.js";
 import prisma from "../lib/prisma.js";
 import { z } from "zod";
 /**
@@ -192,6 +210,10 @@ export const appRouter = router({
     notification: notificationRouter,
     search: searchRouter,
     engagement: engagementRouter,
+    report: reportRouter,
+    strike: strikeRouter,
+    admin: adminRouter,
+    community: communityRouter,
     health: publicProcedure.query(() => {
         return { status: "ok", timestamp: new Date().toISOString() };
     }),

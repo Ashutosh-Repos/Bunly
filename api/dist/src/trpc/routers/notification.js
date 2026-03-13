@@ -144,4 +144,35 @@ export const notificationRouter = router({
             }
         });
     }),
+    getSettings: protectedProcedure.query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx }) {
+        const settings = yield prisma.notification_settings.findUnique({
+            where: { userId: ctx.session.user.id },
+        });
+        // Return defaults if row doesn't exist yet
+        return (settings !== null && settings !== void 0 ? settings : {
+            newVideos: true,
+            liveStreams: true,
+            comments: true,
+            replies: true,
+            likes: false,
+            subscribers: true,
+        });
+    })),
+    updateSettings: protectedProcedure
+        .input(z.object({
+        newVideos: z.boolean().optional(),
+        liveStreams: z.boolean().optional(),
+        comments: z.boolean().optional(),
+        replies: z.boolean().optional(),
+        likes: z.boolean().optional(),
+        subscribers: z.boolean().optional(),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const userId = ctx.session.user.id;
+        return prisma.notification_settings.upsert({
+            where: { userId },
+            create: Object.assign({ userId }, input),
+            update: Object.assign({}, input),
+        });
+    })),
 });
