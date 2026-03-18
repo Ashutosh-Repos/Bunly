@@ -14,6 +14,9 @@ const pool =
     globalForPrisma.pool ??
     new Pool({
         connectionString: config.db.url,
+        max: config.nodeEnv === "production" ? 20 : 10, // Increased for high-load SPA resilience
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
     });
 
 const adapter = globalForPrisma.adapter ?? new PrismaPg(pool);

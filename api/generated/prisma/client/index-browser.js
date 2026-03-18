@@ -136,6 +136,13 @@ exports.Prisma.AccountScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.JwksScalarFieldEnum = {
+  id: 'id',
+  publicKey: 'publicKey',
+  privateKey: 'privateKey',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.Audit_logsScalarFieldEnum = {
   id: 'id',
   actorId: 'actorId',
@@ -531,6 +538,12 @@ exports.Prisma.accountOrderByRelevanceFieldEnum = {
   password: 'password'
 };
 
+exports.Prisma.jwksOrderByRelevanceFieldEnum = {
+  id: 'id',
+  publicKey: 'publicKey',
+  privateKey: 'privateKey'
+};
+
 exports.Prisma.JsonNullValueFilter = {
   DbNull: Prisma.DbNull,
   JsonNull: Prisma.JsonNull,
@@ -860,6 +873,7 @@ exports.ProcessingStatus = exports.$Enums.ProcessingStatus = {
 
 exports.Prisma.ModelName = {
   account: 'account',
+  jwks: 'jwks',
   audit_logs: 'audit_logs',
   categories: 'categories',
   channels: 'channels',

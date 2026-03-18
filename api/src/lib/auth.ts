@@ -84,9 +84,11 @@ export const auth = betterAuth({
     },
     emailVerification: {
         sendVerificationEmail: async ({ user, url }) => {
+            const token = new URL(url).searchParams.get("token");
+            const verificationUrl = `${env.CORS_ORIGIN}/auth/verify-email?token=${token}`;
             await emailService.sendEmailVerificationMail(
                 user.email,
-                url,
+                verificationUrl,
                 user.name,
             );
         },
@@ -97,9 +99,11 @@ export const auth = betterAuth({
     emailAndPassword: {
         enabled: true,
         sendResetPassword: async ({ user, url }) => {
+            const token = new URL(url).searchParams.get("token");
+            const resetUrl = `${env.CORS_ORIGIN}/auth/reset-password?token=${token}`;
             await emailService.sendPasswordResetMail(
                 user.email,
-                url,
+                resetUrl,
                 user.name,
             );
         },

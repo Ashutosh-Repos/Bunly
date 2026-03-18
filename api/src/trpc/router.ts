@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { type Context } from "./context.js";
 import { standardCursorPaginationSchema } from "./cursor.js";
+import redis from "../lib/redis.js";
 
 const t = initTRPC.context<Context>().create({
     transformer: superjson,
@@ -72,24 +73,25 @@ const enforceUserIsAdmin = t.middleware(({ ctx, next }) => {
  * Reusable middleware that enforces user is owner of the channel
  */
 const enforceChannelOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ channelId: z.string() }).safeParse(rawInput);
+        const { channelId } = input as { channelId: string };
+        const cacheKey = `own:${ctx.session.user.id}:channel:${channelId}`;
 
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "channelId is required in input to use channelProcedure",
-            });
+        // 1. Check Redis Cache
+        const cached = await redis.get(cacheKey);
+        if (cached === "1") {
+            const channel = await prisma.channels.findUnique({ where: { id: channelId } });
+            if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+            return next({ ctx: { ...ctx, channel, session: ctx.session } });
         }
 
+        // 2. DB Fallback
         const channel = await prisma.channels.findUnique({
-            where: { id: result.data.channelId },
+            where: { id: channelId },
         });
 
         if (!channel) {
@@ -99,7 +101,14 @@ const enforceChannelOwnership = t.middleware(
             });
         }
 
-        if (channel.userId !== ctx.session.user.id) {
+        const isOwner = channel.userId === ctx.session.user.id;
+        
+        // 3. Update Cache (TTL 5 mins)
+        if (isOwner) {
+            await redis.set(cacheKey, "1", "EX", 300);
+        }
+
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You are not the owner of this channel",
@@ -110,32 +119,33 @@ const enforceChannelOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 channel,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },
 );
 
 const enforceVideoOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ videoId: z.string() }).safeParse(rawInput);
+        const { videoId } = input as { videoId: string };
+        const cacheKey = `own:${ctx.session.user.id}:video:${videoId}`;
 
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "videoId is required in input to use videoProcedure",
-            });
+        // 1. Check Redis
+        const cached = await redis.get(cacheKey);
+        if (cached === "1") {
+            const video = await prisma.videos.findUnique({ where: { id: videoId }, include: { channels: true } });
+            if (!video || video.deletedAt !== null) throw new TRPCError({ code: "NOT_FOUND", message: "Video not found" });
+            return next({ ctx: { ...ctx, video, session: ctx.session } });
         }
 
+        // 2. DB Fallback
         const video = await prisma.videos.findUnique({
-            where: { id: result.data.videoId },
-            include: { channels: true }, // Needed to check channel ownership
+            where: { id: videoId },
+            include: { channels: true },
         });
 
         if (!video || video.deletedAt !== null) {
@@ -145,7 +155,14 @@ const enforceVideoOwnership = t.middleware(
             });
         }
 
-        if (video.channels.userId !== ctx.session.user.id) {
+        const isOwner = video.channels.userId === ctx.session.user.id;
+
+        // 3. Cache Result
+        if (isOwner) {
+            await redis.set(cacheKey, "1", "EX", 300);
+        }
+
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You do not have permission to manage this video",
@@ -156,30 +173,32 @@ const enforceVideoOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 video,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },
 );
+
 const enforcePlaylistOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ playlistId: z.string() }).safeParse(rawInput);
+        const { playlistId } = input as { playlistId: string };
+        const cacheKey = `own:${ctx.session.user.id}:playlist:${playlistId}`;
 
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "playlistId is required in input to use playlistProcedure",
-            });
+        // 1. Check Redis
+        const cached = await redis.get(cacheKey);
+        if (cached === "1") {
+            const playlist = await prisma.playlists.findUnique({ where: { id: playlistId } });
+            if (!playlist) throw new TRPCError({ code: "NOT_FOUND", message: "Playlist not found" });
+            return next({ ctx: { ...ctx, playlist, session: ctx.session } });
         }
 
+        // 2. DB Fallback
         const playlist = await prisma.playlists.findUnique({
-            where: { id: result.data.playlistId },
+            where: { id: playlistId },
         });
 
         if (!playlist) {
@@ -189,7 +208,14 @@ const enforcePlaylistOwnership = t.middleware(
             });
         }
 
-        if (playlist.userId !== ctx.session.user.id) {
+        const isOwner = playlist.userId === ctx.session.user.id;
+
+        // 3. Cache Result
+        if (isOwner) {
+            await redis.set(cacheKey, "1", "EX", 300);
+        }
+
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You do not have permission to manage this playlist",
@@ -200,7 +226,7 @@ const enforcePlaylistOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 playlist,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },

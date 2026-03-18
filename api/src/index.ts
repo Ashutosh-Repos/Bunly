@@ -55,8 +55,8 @@ server.route({
     url: "/api/auth/*",
     async handler(request, reply) {
         try {
-            // Construct request URL
-            const url = new URL(request.url, `http://${request.headers.host}`);
+            // Construct request URL using strict BETTER_AUTH_URL for reliability
+            const url = new URL(request.url, env.BETTER_AUTH_URL);
 
             // Convert Fastify headers to standard Headers object
             const headers = new Headers();
