@@ -11,7 +11,7 @@ const envSchema = z.object({
     
     // Auth
     BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
+    BETTER_AUTH_URL: z.string().url().default("http://localhost:4000"),
     CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),

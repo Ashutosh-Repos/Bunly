@@ -166,10 +166,6 @@ export const auth = betterAuth({
                 window: 60,
                 max: 5,
             },
-            "/two-factor/*": {
-                window: 10,
-                max: 3,
-            },
         },
     },
     secondaryStorage: redisSecondaryStorage,
