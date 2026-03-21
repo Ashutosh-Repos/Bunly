@@ -149,6 +149,19 @@ export function getPresignedPartUrl(videoId, uploadId, partNumber, contentMd5) {
     });
 }
 /**
+ * Get a Presigned URL for viewing/downloading an object (GET)
+ */
+export function getPresignedGetUrl(key_1) {
+    return __awaiter(this, arguments, void 0, function* (key, expiresIn = 3600) {
+        const command = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key,
+        });
+        // Use signerClient so the URL contains the public hostname
+        return yield getSignedUrl(signerClient, command, { expiresIn });
+    });
+}
+/**
  * Complete the Multipart Upload
  */
 export function completeMultipartUpload(videoId, uploadId, parts) {

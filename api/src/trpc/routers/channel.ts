@@ -26,7 +26,12 @@ export const createChannelSchema = z.object({
     description: z.string().trim().max(5000).optional(),
     image: z.string().optional().or(z.literal("")),
     bannerUrl: z.string().optional().or(z.literal("")),
-    contactEmail: z.email().optional(),
+    contactEmail: z
+        .string()
+        .email()
+        .optional()
+        .or(z.literal(""))
+        .transform((val) => (val === "" ? null : val)),
     location: z.string().trim().max(100).optional(),
     links: z.array(linkSchema).max(20).optional(),
     tags: z.array(z.string().trim()).max(50).optional(),
@@ -90,18 +95,7 @@ export const channelRouter = router({
         }),
 
     updateChannel: channelProcedure
-        .input(
-            createChannelSchema
-                .extend({
-                    featureFlags: z
-                        .object({
-                            canLiveStream: z.boolean().optional(),
-                            canUpload: z.boolean().optional(),
-                        })
-                        .optional(),
-                })
-                .partial(),
-        )
+        .input(createChannelSchema.partial())
         .mutation(async ({ ctx, input }) => {
             const { tags, channelId: _channelId, ...data } = input;
             const channelId = ctx.channel.id;

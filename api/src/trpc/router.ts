@@ -79,35 +79,20 @@ const enforceChannelOwnership = t.middleware(
         }
 
         const { channelId } = input as { channelId: string };
-        const cacheKey = `own:${ctx.session.user.id}:channel:${channelId}`;
 
-        // 1. Check Redis Cache
-        const cached = await redis.get(cacheKey);
-        if (cached === "1") {
-            const channel = await prisma.channels.findUnique({ where: { id: channelId } });
-            if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
-            return next({ ctx: { ...ctx, channel, session: ctx.session } });
-        }
-
-        // 2. DB Fallback
         const channel = await prisma.channels.findUnique({
             where: { id: channelId },
         });
 
-        if (!channel) {
+        if (!channel || channel.deletedAt !== null) {
             throw new TRPCError({
                 code: "NOT_FOUND",
-                message: "Channel not found",
+                message: "Channel not found or has been deleted",
             });
         }
 
         const isOwner = channel.userId === ctx.session.user.id;
         
-        // 3. Update Cache (TTL 5 mins)
-        if (isOwner) {
-            await redis.set(cacheKey, "1", "EX", 300);
-        }
-
         if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
@@ -132,17 +117,7 @@ const enforceVideoOwnership = t.middleware(
         }
 
         const { videoId } = input as { videoId: string };
-        const cacheKey = `own:${ctx.session.user.id}:video:${videoId}`;
 
-        // 1. Check Redis
-        const cached = await redis.get(cacheKey);
-        if (cached === "1") {
-            const video = await prisma.videos.findUnique({ where: { id: videoId }, include: { channels: true } });
-            if (!video || video.deletedAt !== null) throw new TRPCError({ code: "NOT_FOUND", message: "Video not found" });
-            return next({ ctx: { ...ctx, video, session: ctx.session } });
-        }
-
-        // 2. DB Fallback
         const video = await prisma.videos.findUnique({
             where: { id: videoId },
             include: { channels: true },
@@ -156,11 +131,6 @@ const enforceVideoOwnership = t.middleware(
         }
 
         const isOwner = video.channels.userId === ctx.session.user.id;
-
-        // 3. Cache Result
-        if (isOwner) {
-            await redis.set(cacheKey, "1", "EX", 300);
-        }
 
         if (!isOwner) {
             throw new TRPCError({
@@ -186,17 +156,7 @@ const enforcePlaylistOwnership = t.middleware(
         }
 
         const { playlistId } = input as { playlistId: string };
-        const cacheKey = `own:${ctx.session.user.id}:playlist:${playlistId}`;
 
-        // 1. Check Redis
-        const cached = await redis.get(cacheKey);
-        if (cached === "1") {
-            const playlist = await prisma.playlists.findUnique({ where: { id: playlistId } });
-            if (!playlist) throw new TRPCError({ code: "NOT_FOUND", message: "Playlist not found" });
-            return next({ ctx: { ...ctx, playlist, session: ctx.session } });
-        }
-
-        // 2. DB Fallback
         const playlist = await prisma.playlists.findUnique({
             where: { id: playlistId },
         });
@@ -209,11 +169,6 @@ const enforcePlaylistOwnership = t.middleware(
         }
 
         const isOwner = playlist.userId === ctx.session.user.id;
-
-        // 3. Cache Result
-        if (isOwner) {
-            await redis.set(cacheKey, "1", "EX", 300);
-        }
 
         if (!isOwner) {
             throw new TRPCError({

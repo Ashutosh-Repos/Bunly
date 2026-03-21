@@ -80,7 +80,9 @@ export const auth = betterAuth({
     },
     emailVerification: {
         sendVerificationEmail: (_a) => __awaiter(void 0, [_a], void 0, function* ({ user, url }) {
-            yield emailService.sendEmailVerificationMail(user.email, url, user.name);
+            const token = new URL(url).searchParams.get("token");
+            const verificationUrl = `${env.CORS_ORIGIN}/auth/verify-email?token=${token}`;
+            yield emailService.sendEmailVerificationMail(user.email, verificationUrl, user.name);
         }),
         sendOnSignUp: true,
         autoSignInAfterVerification: true,
@@ -89,7 +91,9 @@ export const auth = betterAuth({
     emailAndPassword: {
         enabled: true,
         sendResetPassword: (_a) => __awaiter(void 0, [_a], void 0, function* ({ user, url }) {
-            yield emailService.sendPasswordResetMail(user.email, url, user.name);
+            const token = new URL(url).searchParams.get("token");
+            const resetUrl = `${env.CORS_ORIGIN}/auth/reset-password?token=${token}`;
+            yield emailService.sendPasswordResetMail(user.email, resetUrl, user.name);
         }),
         password: {
             hash: hashPassword,
@@ -102,16 +106,19 @@ export const auth = betterAuth({
         autoSignIn: true,
         resetPasswordTokenExpiresIn: 3600,
     },
-    socialProviders: {
+    socialProviders: Object.assign(Object.assign({}, (env.GOOGLE_CLIENT_ID &&
+        env.GOOGLE_CLIENT_SECRET && {
         google: {
-            clientId: env.GOOGLE_CLIENT_ID || "",
-            clientSecret: env.GOOGLE_CLIENT_SECRET || "",
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
         },
+    })), (env.GITHUB_CLIENT_ID &&
+        env.GITHUB_CLIENT_SECRET && {
         github: {
-            clientId: env.GITHUB_CLIENT_ID || "",
-            clientSecret: env.GITHUB_CLIENT_SECRET || "",
+            clientId: env.GITHUB_CLIENT_ID,
+            clientSecret: env.GITHUB_CLIENT_SECRET,
         },
-    },
+    })),
     session: {
         expiresIn: 2592000, // 30 Days
         updateAge: 86400, // Update session every 1 day
@@ -149,10 +156,6 @@ export const auth = betterAuth({
             "/reset-password": {
                 window: 60,
                 max: 5,
-            },
-            "/two-factor/*": {
-                window: 10,
-                max: 3,
             },
         },
     },

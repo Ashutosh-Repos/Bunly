@@ -168,6 +168,73 @@ server.get(
     },
 );
 
+// Media Proxy: Generates Transient Presigned GET URLs for Private Bucket Objects
+// Also acts as a Lazy HLS Router to support relative WHATWG URL resolution.
+server.get("/api/media/*", async (req, reply) => {
+    const rawKey = (req.params as any)["*"];
+    if (!rawKey) {
+        return reply.status(400).send({ error: "Missing key parameter" });
+    }
+
+    // Decode in case of URL encoded components
+    const key = decodeURIComponent(rawKey);
+
+    try {
+        // HLS Text Manifests (.m3u8) MUST be downloaded and served as text by Fastify
+        // This ensures the browser's base URL is the Fastify domain for relative chunk resolution.
+        if (key.endsWith(".m3u8")) {
+            const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+            const config = (await import("./lib/config.js")).default;
+            
+            const internalEndpoint = config.s3.endpoint;
+            const s3Client = new S3Client({
+                region: config.s3.region,
+                endpoint: internalEndpoint,
+                credentials: {
+                    accessKeyId: config.s3.accessKeyId,
+                    secretAccessKey: config.s3.secretAccessKey,
+                },
+                forcePathStyle: true,
+            });
+
+            const command = new GetObjectCommand({
+                Bucket: config.s3.bucket,
+                Key: key,
+            });
+
+            const s3Response = await s3Client.send(command);
+            
+            if (!s3Response.Body) {
+                return reply.status(404).send({ error: "Manifest empty or not found" });
+            }
+
+            // Stream it directly to the browser
+            reply.header("Content-Type", "application/vnd.apple.mpegurl");
+            // Cache text manifests briefly for performance (too long risks breaking live playlists)
+            reply.header("Cache-Control", "public, max-age=60");
+            
+            const stream = s3Response.Body as NodeJS.ReadableStream;
+            return reply.send(stream);
+        }
+
+        // EVERYTHING ELSE (Photos, Avatars, .ts chunks, .vtt sprites) 
+        // Generates a Pre-Signed URL and returns a 302 Redirect (Zero Egress!)
+        const { getPresignedGetUrl } = await import("./lib/storage.js");
+        const url = await getPresignedGetUrl(key);
+        
+        // Cache the redirect for 50 minutes (presigned URLs expire in 60m)
+        return reply
+            .header("Cache-Control", "public, max-age=3000")
+            .redirect(url);
+    } catch (error: any) {
+        if (error.name === "NoSuchKey") {
+            return reply.status(404).send({ error: "Media not found" });
+        }
+        server.log.error(error, "Media Proxy Error");
+        return reply.status(500).send({ error: "Failed to fetch media" });
+    }
+});
+
 // Basic health check outside of tRPC
 server.get("/health", async () => {
     return { status: "ok", timestamp: new Date().toISOString() };

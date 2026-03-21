@@ -1,6 +1,7 @@
 import { router, protectedProcedure } from "../router.js";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { auth } from "../../lib/auth.js";
 import { TRPCError } from "@trpc/server";
 
 const socialLinkSchema = z.object({
@@ -23,8 +24,8 @@ const updateUserSchema = z.object({
     bio: z.string().max(1000).optional(),
     websiteUrl: z.string().url().optional().or(z.literal("")),
     location: z.string().max(100).optional(),
-    image: z.string().url().optional().or(z.literal("")),
-    bannerUrl: z.string().url().optional().or(z.literal("")),
+    image: z.string().optional().or(z.literal("")),
+    bannerUrl: z.string().optional().or(z.literal("")),
     socialLinks: z.array(socialLinkSchema).max(10).optional(),
     businessInfo: businessInfoSchema.optional(),
     contactInfo: contactInfoSchema.optional(),
@@ -94,22 +95,26 @@ export const userRouter = router({
             }
         }),
 
+    /**
+     * Account Deletion Process:
+     * 1. Trigger Better Auth's deleteUser, which sends a verification email.
+     * 2. When the user clicks the email link, Better Auth hard-deletes the auth record.
+     * 3. Prisma's `onDelete: Cascade` automatically deletes all associated channels, videos, comments, etc.
+     */
     deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
-        const userId = ctx.session.user.id;
+        try {
+            await auth.api.deleteUser({
+                headers: ctx.headers,
+                body: {},
+            });
 
-        await prisma.$transaction([
-            // Suspend all owned channels so their content doesn't appear in feeds
-            prisma.channels.updateMany({
-                where: { userId, deletedAt: null },
-                data: { status: "SUSPENDED", deletedAt: new Date() },
-            }),
-            // Soft-delete the user
-            prisma.user.update({
-                where: { id: userId },
-                data: { deletedAt: new Date() },
-            }),
-        ]);
-
-        return { success: true };
+            return { success: true };
+        } catch (error: any) {
+            console.error("Failed to delete account:", error);
+            throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: error?.message || "Failed to initiate account deletion",
+            });
+        }
     }),
 });

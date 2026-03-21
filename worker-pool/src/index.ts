@@ -3,6 +3,7 @@ import "./env.js"; // Validate env first — fails fast if vars missing
 import { startEngagementWorkers } from "./queue/engagement.js";
 import { startEmailWorker } from "./queue/email.js";
 import { startSchedulerWorker, startFanoutWorker, registerRepeatableJobs } from "./queue/scheduler.js";
+import { startNotificationWorker } from "./queue/notification.js";
 import { closeQueues } from "./queue/definitions.js";
 import redis from "./lib/redis.js";
 import { prisma } from "./lib/prisma.js";
@@ -12,6 +13,7 @@ import { prisma } from "./lib/prisma.js";
 console.log("[Worker Pool] 🚀 Starting...");
 
 const stopEngagement = startEngagementWorkers();
+const stopNotifications = startNotificationWorker();
 const emailWorker = startEmailWorker();
 const schedulerWorker = startSchedulerWorker();
 const fanoutWorker = startFanoutWorker();
@@ -34,6 +36,7 @@ const gracefulShutdown = async (signal: string) => {
 
     // 1. Stop Redis stream consumers (stops blocking, exits loops)
     stopEngagement();
+    stopNotifications();
 
     // 2. Stop BullMQ workers (finish current job, then close)
     await Promise.allSettled([emailWorker.close(), schedulerWorker.close(), fanoutWorker.close()]);

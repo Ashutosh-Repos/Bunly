@@ -14,6 +14,7 @@ import { reportRouter } from "./routers/report.js";
 import { strikeRouter } from "./routers/strike.js";
 import { adminRouter } from "./routers/admin.js";
 import { communityRouter } from "./routers/community.js";
+import { uploadRouter } from "./routers/upload.js";
 
 /**
  * App Router containing all sub-routers
@@ -34,6 +35,7 @@ export const appRouter = router({
     strike: strikeRouter,
     admin: adminRouter,
     community: communityRouter,
+    upload: uploadRouter,
     health: publicProcedure.query(() => {
         return { status: "ok", timestamp: new Date().toISOString() };
     }),

@@ -463,10 +463,22 @@ async function handleEngagementBatch(
         }) as VideoNotifRow[];
         const videoMap = new Map(videos.map((v) => [v.id, v]));
 
+        // [SETTINGS FIX] Fetch explicit opt-out preferences natively before spraying notifications
+        const ownerUserIds = [...new Set(videos.map((v) => v.channels.userId))];
+        const userSettings = await prisma.notification_settings.findMany({
+            where: { userId: { in: ownerUserIds } },
+            select: { userId: true, likes: true },
+        });
+        const settingsMap = new Map(userSettings.map((s) => [s.userId, s]));
+
         const notifOps: Promise<unknown>[] = [];
         for (const like of newLikes) {
             const video = videoMap.get(like.videoId);
             if (!video || video.channels.userId === like.userId) continue;
+            
+            // Abort notification broadcast if user explicitly opted out globally
+            const userPrefs = settingsMap.get(video.channels.userId);
+            if (userPrefs && userPrefs.likes === false) continue;
 
             notifOps.push(
                 prisma.notifications.create({
@@ -480,6 +492,13 @@ async function handleEngagementBatch(
                         thumbnailUrl: video.thumbnailUrl,
                         actionUrl: `/watch/${like.videoId}`,
                     },
+                    include: {
+                        user_notifications_actorIdTouser: {
+                            select: { id: true, name: true, image: true },
+                        },
+                    },
+                }).then((record) => {
+                    return redis.publish(`user:notifications:${record.userId}`, JSON.stringify(record)).catch(() => {});
                 }).catch((e: unknown) =>
                     console.warn("[EngagementWorker] Notification error:", e),
                 ),
@@ -751,8 +770,15 @@ async function handleSubscriptionBatch(
                     select: { userId: true, handle: true, name: true },
                 });
 
+                // [SETTINGS FIX] Respect user's UI toggle preference preventing UI spam
                 if (channel && channel.userId !== subscriberId) {
-                    await prisma.notifications.create({
+                    const settings = await prisma.notification_settings.findUnique({
+                        where: { userId: channel.userId },
+                        select: { subscribers: true },
+                    });
+
+                    if (!settings || settings.subscribers !== false) {
+                        await prisma.notifications.create({
                         data: {
                             userId: channel.userId,
                             actorId: subscriberId,
@@ -763,7 +789,15 @@ async function handleSubscriptionBatch(
                             actionUrl: `/@${channel.handle}`,
                             groupKey: `NEW_SUBSCRIBER:${channelId}:${new Date().toISOString().slice(0, 10)}`,
                         },
+                        include: {
+                            user_notifications_actorIdTouser: {
+                                select: { id: true, name: true, image: true },
+                            },
+                        },
+                    }).then((record) => {
+                        return redis.publish(`user:notifications:${record.userId}`, JSON.stringify(record)).catch(() => {});
                     });
+                    }
                 }
             } else {
                 // UNSUBSCRIBE: delete + recount atomically

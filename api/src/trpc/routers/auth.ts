@@ -38,26 +38,7 @@ export const completeProfileSchema = z.object({
     image: z.string().url().optional(),
 });
 
-export const revokeSessionSchema = z.object({
-    token: z.string(),
-});
 
-export const changePasswordSchema = z.object({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z
-        .string()
-        .min(8, "Password must be at least 8 characters")
-        .max(128, "Password is too long"),
-    revokeOtherSessions: z.boolean().optional().default(true),
-});
-
-export const linkSocialSchema = z.object({
-    provider: z.enum(["google", "github"]),
-});
-
-export const unlinkSocialSchema = z.object({
-    providerId: z.string(),
-});
 
 export const authRouter = router({
     /**
@@ -65,6 +46,22 @@ export const authRouter = router({
      */
     getSession: publicProcedure.query(async ({ ctx }) => {
         return ctx.session;
+    }),
+
+    /**
+     * Lists all active sessions for the current user
+     */
+    listSessions: protectedProcedure.query(async ({ ctx }) => {
+        try {
+            return await auth.api.listSessions({
+                headers: ctx.headers,
+            });
+        } catch (error: any) {
+            throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: error?.message || "Failed to list sessions",
+            });
+        }
     }),
 
     /**
@@ -95,137 +92,20 @@ export const authRouter = router({
         }),
 
     /**
-     * Lists all active sessions for the current user
+     * Lists all linked accounts (credential, google, github) for the current user.
+     * Used by the settings page to show connected providers.
      */
-    listSessions: protectedProcedure.query(async ({ ctx }) => {
+    listAccounts: protectedProcedure.query(async ({ ctx }) => {
         try {
-            return await auth.api.listSessions({
+            const accounts = await auth.api.listUserAccounts({
                 headers: ctx.headers,
             });
+            return accounts;
         } catch (error: any) {
             throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: error?.message || "Failed to list sessions",
+                message: error?.message || "Failed to list accounts",
             });
         }
     }),
-
-    /**
-     * Revokes a specific session by token
-     */
-    revokeSession: protectedProcedure
-        .input(revokeSessionSchema)
-        .mutation(async ({ input, ctx }) => {
-            try {
-                await auth.api.revokeSession({
-                    headers: ctx.headers,
-                    body: {
-                        token: input.token,
-                    },
-                });
-                return { success: true };
-            } catch (error: any) {
-                throw new TRPCError({
-                    code: "INTERNAL_SERVER_ERROR",
-                    message: error?.message || "Failed to revoke session",
-                });
-            }
-        }),
-
-    /**
-     * Revokes all other sessions except the current one
-     */
-    revokeOtherSessions: protectedProcedure.mutation(async ({ ctx }) => {
-        try {
-            await auth.api.revokeOtherSessions({
-                headers: ctx.headers,
-            });
-            return { success: true };
-        } catch (error: any) {
-            throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: error?.message || "Failed to revoke other sessions",
-            });
-        }
-    }),
-
-    /**
-     * Signs out the current session
-     */
-    signOut: protectedProcedure.mutation(async ({ ctx }) => {
-        try {
-            await auth.api.signOut({
-                headers: ctx.headers,
-            });
-            return { success: true };
-        } catch (error: any) {
-            throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: error?.message || "Failed to sign out",
-            });
-        }
-    }),
-
-    /**
-     * Sends an account deletion verification email if configured, or deletes the account
-     */
-    deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
-        try {
-            await (auth.api as any).deleteUser({
-                headers: ctx.headers,
-                body: {}, // satisfy empty body requirements if they exist
-            });
-            return { success: true };
-        } catch (error: any) {
-            throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: error?.message || "Failed to delete account",
-            });
-        }
-    }),
-
-    /**
-     * Returns an OAuth URL for linking a new social provider to the current account
-     */
-    linkSocial: protectedProcedure
-        .input(linkSocialSchema)
-        .mutation(async ({ input, ctx }) => {
-            try {
-                const result = await (auth.api as any).linkSocial({
-                    headers: ctx.headers,
-                    body: {
-                        provider: input.provider,
-                        callbackURL: "/me/settings",
-                    },
-                });
-                return result;
-            } catch (error: any) {
-                throw new TRPCError({
-                    code: "INTERNAL_SERVER_ERROR",
-                    message: error?.message || "Failed to link social account",
-                });
-            }
-        }),
-
-    /**
-     * Unlinks an OAuth provider from the current account securely
-     */
-    unlinkSocial: protectedProcedure
-        .input(unlinkSocialSchema)
-        .mutation(async ({ input, ctx }) => {
-            try {
-                await auth.api.unlinkAccount({
-                    headers: ctx.headers,
-                    body: {
-                        providerId: input.providerId,
-                    },
-                });
-                return { success: true };
-            } catch (error: any) {
-                throw new TRPCError({
-                    code: "INTERNAL_SERVER_ERROR",
-                    message: error?.message || "Failed to unlink account",
-                });
-            }
-        }),
 });

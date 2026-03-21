@@ -66,11 +66,41 @@ class EmailService {
                     return;
                 }
                 catch (err) {
-                    console.warn("[Email] Queue add failed:", err);
+                    console.warn("[Email] Queue add failed, falling back to direct send:", err);
                 }
             }
             else {
-                console.warn("[Email] No queue available, skipping email send");
+                console.warn("[Email] No queue available, falling back to direct send");
+            }
+            // Direct Execution Fallback
+            if (!config.email.brevoApiKey) {
+                console.warn("[Email] No Brevo API Key configured, intentionally dropping email.");
+                return;
+            }
+            try {
+                const res = yield fetch("https://api.brevo.com/v3/smtp/email", {
+                    method: "POST",
+                    headers: {
+                        "api-key": config.email.brevoApiKey,
+                        "content-type": "application/json",
+                        accept: "application/json",
+                    },
+                    body: JSON.stringify({
+                        sender: { name: config.appName, email: job.from },
+                        to: [{ email: job.to }],
+                        subject: job.subject,
+                        htmlContent: job.html,
+                    }),
+                    signal: AbortSignal.timeout(10000),
+                });
+                if (!res.ok) {
+                    const result = (yield res.json().catch(() => ({})));
+                    throw new Error(result.code ? `Brevo ${result.code}: ${result.message}` : `Brevo HTTP ${res.status}`);
+                }
+                console.log(`[Email] ✅ Direct delivery successful: "${subject}"`);
+            }
+            catch (fallbackErr) {
+                console.error(`[Email] ❌ Direct delivery failed for "${subject}":`, fallbackErr.message);
             }
         });
     }

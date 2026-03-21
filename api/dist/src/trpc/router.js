@@ -59,20 +59,13 @@ const enforceUserIsAdmin = t.middleware(({ ctx, next }) => {
 /**
  * Reusable middleware that enforces user is owner of the channel
  */
-const enforceChannelOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, getRawInput }) {
+const enforceChannelOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, input }) {
     if (!ctx.session || !ctx.session.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    const rawInput = yield getRawInput();
-    const result = z.object({ channelId: z.string() }).safeParse(rawInput);
-    if (!result.success) {
-        throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "channelId is required in input to use channelProcedure",
-        });
-    }
+    const { channelId } = input;
     const channel = yield prisma.channels.findUnique({
-        where: { id: result.data.channelId },
+        where: { id: channelId },
     });
     if (!channel) {
         throw new TRPCError({
@@ -80,7 +73,8 @@ const enforceChannelOwnership = t.middleware((_a) => __awaiter(void 0, [_a], voi
             message: "Channel not found",
         });
     }
-    if (channel.userId !== ctx.session.user.id) {
+    const isOwner = channel.userId === ctx.session.user.id;
+    if (!isOwner) {
         throw new TRPCError({
             code: "FORBIDDEN",
             message: "You are not the owner of this channel",
@@ -90,21 +84,14 @@ const enforceChannelOwnership = t.middleware((_a) => __awaiter(void 0, [_a], voi
         ctx: Object.assign(Object.assign({}, ctx), { channel, session: ctx.session }),
     });
 }));
-const enforceVideoOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, getRawInput }) {
+const enforceVideoOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, input }) {
     if (!ctx.session || !ctx.session.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    const rawInput = yield getRawInput();
-    const result = z.object({ videoId: z.string() }).safeParse(rawInput);
-    if (!result.success) {
-        throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "videoId is required in input to use videoProcedure",
-        });
-    }
+    const { videoId } = input;
     const video = yield prisma.videos.findUnique({
-        where: { id: result.data.videoId },
-        include: { channels: true }, // Needed to check channel ownership
+        where: { id: videoId },
+        include: { channels: true },
     });
     if (!video || video.deletedAt !== null) {
         throw new TRPCError({
@@ -112,7 +99,8 @@ const enforceVideoOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 
             message: "Video not found",
         });
     }
-    if (video.channels.userId !== ctx.session.user.id) {
+    const isOwner = video.channels.userId === ctx.session.user.id;
+    if (!isOwner) {
         throw new TRPCError({
             code: "FORBIDDEN",
             message: "You do not have permission to manage this video",
@@ -122,20 +110,13 @@ const enforceVideoOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 
         ctx: Object.assign(Object.assign({}, ctx), { video, session: ctx.session }),
     });
 }));
-const enforcePlaylistOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, getRawInput }) {
+const enforcePlaylistOwnership = t.middleware((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, next, input }) {
     if (!ctx.session || !ctx.session.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    const rawInput = yield getRawInput();
-    const result = z.object({ playlistId: z.string() }).safeParse(rawInput);
-    if (!result.success) {
-        throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "playlistId is required in input to use playlistProcedure",
-        });
-    }
+    const { playlistId } = input;
     const playlist = yield prisma.playlists.findUnique({
-        where: { id: result.data.playlistId },
+        where: { id: playlistId },
     });
     if (!playlist) {
         throw new TRPCError({
@@ -143,7 +124,8 @@ const enforcePlaylistOwnership = t.middleware((_a) => __awaiter(void 0, [_a], vo
             message: "Playlist not found",
         });
     }
-    if (playlist.userId !== ctx.session.user.id) {
+    const isOwner = playlist.userId === ctx.session.user.id;
+    if (!isOwner) {
         throw new TRPCError({
             code: "FORBIDDEN",
             message: "You do not have permission to manage this playlist",

@@ -16,6 +16,7 @@ export const STREAMS = {
     COMMENT_COUNT: "queue:comment-count",
     NEW_VIDEO_NOTIFICATIONS: "queue:new-video-notifications",
     SUBSCRIPTIONS: "queue:subscriptions",
+    NOTIFICATIONS: "queue:notifications",
 } as const;
 
 // ─── Job Names ────────────────────────────────────────────────────────────────

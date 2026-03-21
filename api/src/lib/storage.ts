@@ -180,6 +180,22 @@ export async function getPresignedPartUrl(
 }
 
 /**
+ * Get a Presigned URL for viewing/downloading an object (GET)
+ */
+export async function getPresignedGetUrl(
+    key: string,
+    expiresIn: number = 3600
+): Promise<string> {
+    const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+    });
+
+    // Use signerClient so the URL contains the public hostname
+    return await getSignedUrl(signerClient, command, { expiresIn });
+}
+
+/**
  * Complete the Multipart Upload
  */
 export async function completeMultipartUpload(
