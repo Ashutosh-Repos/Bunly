@@ -15,6 +15,7 @@ import { strikeRouter } from "./routers/strike.js";
 import { adminRouter } from "./routers/admin.js";
 import { communityRouter } from "./routers/community.js";
 import { uploadRouter } from "./routers/upload.js";
+import { categoryRouter } from "./routers/category.js";
 
 /**
  * App Router containing all sub-routers
@@ -25,6 +26,7 @@ export const appRouter = router({
     channel: channelRouter,
     playlist: playlistRouter,
     video: videoRouter,
+    category: categoryRouter,
     comment: commentRouter,
     feed: feedRouter,
     history: historyRouter,

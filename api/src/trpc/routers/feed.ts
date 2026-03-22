@@ -3,6 +3,19 @@ import { router, protectedProcedure } from "../router.js";
 import { FeedService, feedCursorSchema } from "../../services/FeedService";
 
 export const feedRouter = router({
+    getSubscriptionsFeed: protectedProcedure
+        .input(
+            z.object({
+                cursor: feedCursorSchema.optional(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            return await FeedService.getSubscriptionsFeed(
+                ctx.session.user.id,
+                input.cursor,
+            );
+        }),
+
     getHomeFeed: protectedProcedure
         .input(
             z.object({

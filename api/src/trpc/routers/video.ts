@@ -1324,7 +1324,22 @@ export const videoRouter = router({
 
             const video = await prisma.videos.findUnique({
                 where: { id: videoId },
-                include: {
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    thumbnailUrl: true,
+                    previewSpriteVtt: true,
+                    duration: true,
+                    visibility: true,
+                    processingStatus: true,
+                    viewCount: true,
+                    likeCount: true,
+                    dislikeCount: true,
+                    commentCount: true,
+                    createdAt: true,
+                    publishedAt: true,
+                    channelId: true,
                     channels: {
                         select: {
                             id: true,
@@ -1338,6 +1353,7 @@ export const videoRouter = router({
                     tags: true,
                     category: true,
                     chapters: { orderBy: { startTime: "asc" } },
+                    deletedAt: true,
                 },
             });
 
@@ -1348,15 +1364,16 @@ export const videoRouter = router({
                 });
             }
 
-            const isOwner = video.channels?.userId === userId;
-            if (
-                video.visibility !== "PUBLIC" &&
-                video.visibility !== "UNLISTED" &&
-                !isOwner
-            ) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const isOwner = (video as any).channels?.userId === userId;
+            const isPubliclyAvailable = 
+                (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") && 
+                video.processingStatus === "READY";
+
+            if (!isPubliclyAvailable && !isOwner) {
                 throw new TRPCError({
-                    code: "NOT_FOUND", // Mask private/unlisted as not found for non-owners
-                    message: "Video not found or private",
+                    code: "NOT_FOUND", // Mask private/unlisted/processing as not found for non-owners
+                    message: "Video not found or is unavailable",
                 });
             }
 

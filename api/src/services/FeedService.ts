@@ -306,6 +306,45 @@ export class FeedService {
     }
 
     /**
+     * Get Subscriptions Feed - Recent videos from subscribed channels
+     */
+    public static async getSubscriptionsFeed(
+        userId: string,
+        cursor: FeedCursor = 0,
+    ): Promise<{
+        videos: HydratedVideo[];
+        nextCursor: FeedCursor | undefined;
+    }> {
+        try {
+            const limit = this.PAGE_SIZE;
+            const videos = await prisma.$queryRaw<RawFeedRow[]>`
+                SELECT
+                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                    c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
+                    c."subscriberCount" as "channelSubscriberCount",
+                    v."viewCount", v."createdAt", v.duration, v."isShort"
+                FROM videos v
+                INNER JOIN channels c ON v."channelId" = c.id
+                INNER JOIN subscriptions s ON c.id = s."channelId"
+                WHERE s."subscriberId" = ${userId}
+                  AND v.visibility = 'PUBLIC'
+                  AND v."processingStatus" = 'READY'
+                  AND v."deletedAt" IS NULL
+                  AND c.status = 'ACTIVE'
+                ORDER BY COALESCE(v."publishedAt", v."createdAt") DESC, v.id ASC
+                LIMIT ${limit} OFFSET ${cursor};
+            `;
+            return this.formatResponse(videos, cursor, limit);
+        } catch (error) {
+            console.error("[FeedService] getSubscriptionsFeed failed", error);
+            throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to fetch subscriptions feed",
+            });
+        }
+    }
+
+    /**
      * Get Public Videos for a Channel (paginated, newest first)
      */
     public static async getChannelVideos(

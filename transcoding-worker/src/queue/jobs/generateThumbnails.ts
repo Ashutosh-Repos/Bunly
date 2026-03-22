@@ -8,7 +8,7 @@ import { generateThumbnails } from "../../lib/ffmpeg.js";
 const getTempDir = () => config.tempDir;
 
 export async function handleThumbnails(job: Job) {
-    const { videoId, inputPath: s3Key } = job.data;
+    const { videoId, inputPath: s3Key, duration } = job.data;
     const localDir = path.join(getTempDir(), videoId, "thumbnails");
 
     ensureDir(localDir);
@@ -17,7 +17,7 @@ export async function handleThumbnails(job: Job) {
 
     console.log(`[Pipeline] 📷 Generating thumbnails...`);
     await job.updateProgress({ percent: 10, videoId });
-    const filenames = await generateThumbnails(localInput, localDir);
+    const filenames = await generateThumbnails(localInput, localDir, duration);
 
     await job.updateProgress({ percent: 50, videoId });
     const thumbnailKeys: string[] = [];
