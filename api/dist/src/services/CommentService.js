@@ -13,12 +13,47 @@ import { NotificationService } from "./NotificationService";
 import { TRPCError } from "@trpc/server";
 export class CommentService {
     /**
+     * Helper to verify if a user has read/write access to a video's comments.
+     */
+    static verifyVideoAccess(videoId, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const video = yield prisma.videos.findUnique({
+                where: { id: videoId },
+                select: {
+                    visibility: true,
+                    processingStatus: true,
+                    deletedAt: true,
+                    channels: { select: { userId: true } },
+                },
+            });
+            if (!video || video.deletedAt) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Video not found",
+                });
+            }
+            const isOwner = ((_a = video.channels) === null || _a === void 0 ? void 0 : _a.userId) === userId;
+            const isPubliclyAvailable = (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+                video.processingStatus === "READY";
+            if (!isPubliclyAvailable && !isOwner) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Video not found or is unavailable",
+                });
+            }
+            return true;
+        });
+    }
+    /**
      * Get comments for a video with tiered caching.
      * - Page 1 is cached in Redis for 5 minutes.
      * - Subsequent pages hit the DB using cursor pagination.
      */
     static getComments(videoId_1) {
         return __awaiter(this, arguments, void 0, function* (videoId, sortBy = "NEWEST", cursor = null, limit = 20, userId) {
+            // 0. Security Guard (Must run on every request regardless of cache)
+            yield this.verifyVideoAccess(videoId, userId);
             // 1. Try Cache for First Page
             const isFirstPage = !cursor;
             const cacheKey = this.KEYS.list(videoId, sortBy);
@@ -198,6 +233,8 @@ export class CommentService {
      */
     static createComment(userId, videoId, content, parentId) {
         return __awaiter(this, void 0, void 0, function* () {
+            // 0. Security Guard
+            yield this.verifyVideoAccess(videoId, userId);
             let effectiveParentId = parentId;
             if (parentId) {
                 const parent = yield prisma.comments.findUnique({

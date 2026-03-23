@@ -7,12 +7,15 @@ export const searchRouter = router({
         .input(
             z.object({
                 query: z.string().min(1),
-                cursor: z.string().nullish(), // Video ID for offset
+                cursor: z.string().nullish(), // ID for offset (video, channel, or playlist)
                 limit: z.number().min(1).max(50).default(20),
+                filter: z
+                    .enum(["ALL", "VIDEOS", "CHANNELS", "PLAYLISTS"])
+                    .default("ALL"),
             }),
         )
         .query(async ({ input, ctx }) => {
-            const { query, cursor, limit } = input;
+            const { query, cursor, limit, filter } = input;
 
             const sanitizedQuery = query.replace(/[&|!():*<>\\]/g, "").trim();
             if (!sanitizedQuery) {
@@ -56,23 +59,122 @@ export const searchRouter = router({
 
             let fetchedChannels: SearchChannel[] = [];
             let fetchedPlaylists: SearchPlaylist[] = [];
+            let nextCursor: string | undefined = undefined;
 
-            if (!cursor) {
+            // --- CHANNELS PAGINATION ---
+            if (filter === "CHANNELS") {
+                const channelsList = await prisma.channels.findMany({
+                    where: {
+                        status: "ACTIVE",
+                        OR: [
+                            { name: { search: formattedQuery } },
+                            { handle: { search: formattedQuery } },
+                        ],
+                    },
+                    take: limit + 1,
+                    cursor: cursor ? { id: cursor } : undefined,
+                    skip: cursor ? 1 : 0,
+                    orderBy: [{ subscriberCount: "desc" }, { id: "asc" }],
+                    select: {
+                        id: true,
+                        name: true,
+                        handle: true,
+                        image: true,
+                        subscriberCount: true,
+                        videoCount: true,
+                    },
+                });
+
+                if (channelsList.length > limit) {
+                    const nextItem = channelsList.pop();
+                    nextCursor = nextItem!.id;
+                }
+
+                if (ctx.session.user?.id && channelsList.length > 0) {
+                    const subscriptions = await prisma.subscriptions.findMany({
+                        where: {
+                            subscriberId: ctx.session.user.id,
+                            channelId: { in: channelsList.map((c) => c.id) },
+                        },
+                    });
+                    const subSet = new Set(
+                        subscriptions.map((s) => s.channelId),
+                    );
+                    fetchedChannels = channelsList.map((c) => ({
+                        ...c,
+                        isSubscribed: subSet.has(c.id),
+                    }));
+                } else {
+                    fetchedChannels = channelsList.map((c) => ({
+                        ...c,
+                        isSubscribed: false,
+                    }));
+                }
+
+                return {
+                    channels: fetchedChannels,
+                    playlists: [],
+                    items: [],
+                    nextCursor,
+                };
+            }
+
+            // --- PLAYLISTS PAGINATION ---
+            if (filter === "PLAYLISTS") {
+                const playlistsList = await prisma.playlists.findMany({
+                    where: {
+                        visibility: "PUBLIC",
+                        title: { search: formattedQuery },
+                    },
+                    take: limit + 1,
+                    cursor: cursor ? { id: cursor } : undefined,
+                    skip: cursor ? 1 : 0,
+                    orderBy: [{ videoCount: "desc" }, { id: "asc" }],
+                    select: {
+                        id: true,
+                        title: true,
+                        thumbnailUrl: true,
+                        videoCount: true,
+                        updatedAt: true,
+                        channels: {
+                            select: {
+                                id: true,
+                                name: true,
+                                handle: true,
+                                image: true,
+                            },
+                        },
+                    },
+                });
+
+                if (playlistsList.length > limit) {
+                    const nextItem = playlistsList.pop();
+                    nextCursor = nextItem!.id;
+                }
+
+                fetchedPlaylists = playlistsList.map((p) => ({
+                    ...p,
+                    updatedAt: p.updatedAt.toISOString(),
+                }));
+
+                return {
+                    channels: [],
+                    playlists: fetchedPlaylists,
+                    items: [],
+                    nextCursor,
+                };
+            }
+
+            // --- MIXED "ALL" / "VIDEOS" SEARCH ---
+            // Fetch top preview items ONLY if we are on the first page of "ALL" filter
+            if (filter === "ALL" && !cursor) {
                 const [channelsList, playlistsList] = await Promise.all([
                     prisma.channels.findMany({
                         where: {
                             status: "ACTIVE",
                             OR: [
-                                {
-                                    name: {
-                                        search: formattedQuery,
-                                    },
-                                },
-                                {
-                                    handle: {
-                                        search: formattedQuery,
-                                    },
-                                },
+                                { name: { search: formattedQuery } },
+                                { handle: { search: formattedQuery } },
                             ],
                         },
                         take: 2,
@@ -154,6 +256,7 @@ export const searchRouter = router({
                 },
                 take: limit + 1,
                 cursor: cursor ? { id: cursor } : undefined,
+                skip: cursor ? 1 : 0,
                 orderBy: [
                     { engagementScore: "desc" }, // Quality filter
                     { viewCount: "desc" }, // Popularity fallback
@@ -180,7 +283,6 @@ export const searchRouter = router({
                 },
             });
 
-            let nextCursor: typeof cursor | undefined = undefined;
             if (videos.length > limit) {
                 const nextItem = videos.pop();
                 nextCursor = nextItem!.id;

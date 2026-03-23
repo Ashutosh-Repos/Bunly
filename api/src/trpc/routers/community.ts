@@ -73,7 +73,7 @@ export const communityRouter = router({
             return { success: true };
         }),
 
-    getChannelPosts: publicProcedure
+    getChannelPosts: protectedProcedure
         .input(
             z.object({
                 channelId: z.string(),

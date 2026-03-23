@@ -41,7 +41,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { on } from "events";
-import { router, protectedProcedure, publicProcedure, videoProcedure, channelProcedure, } from "../router.js";
+import { router, protectedProcedure, videoProcedure, channelProcedure, } from "../router.js";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 import config from "../../lib/config.js";
@@ -1002,7 +1002,22 @@ export const videoRouter = router({
         const userId = ctx.session.user.id;
         const video = yield prisma.videos.findUnique({
             where: { id: videoId },
-            include: {
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                thumbnailUrl: true,
+                previewSpriteVtt: true,
+                duration: true,
+                visibility: true,
+                processingStatus: true,
+                viewCount: true,
+                likeCount: true,
+                dislikeCount: true,
+                commentCount: true,
+                createdAt: true,
+                publishedAt: true,
+                channelId: true,
                 channels: {
                     select: {
                         id: true,
@@ -1016,6 +1031,7 @@ export const videoRouter = router({
                 tags: true,
                 category: true,
                 chapters: { orderBy: { startTime: "asc" } },
+                deletedAt: true,
             },
         });
         if (!video || video.deletedAt !== null) {
@@ -1024,13 +1040,14 @@ export const videoRouter = router({
                 message: "Video not found",
             });
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isOwner = ((_b = video.channels) === null || _b === void 0 ? void 0 : _b.userId) === userId;
-        if (video.visibility !== "PUBLIC" &&
-            video.visibility !== "UNLISTED" &&
-            !isOwner) {
+        const isPubliclyAvailable = (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+            video.processingStatus === "READY";
+        if (!isPubliclyAvailable && !isOwner) {
             throw new TRPCError({
-                code: "NOT_FOUND", // Mask private/unlisted as not found for non-owners
-                message: "Video not found or private",
+                code: "NOT_FOUND", // Mask private/unlisted/processing as not found for non-owners
+                message: "Video not found or is unavailable",
             });
         }
         // Hybrid Read for Watch History
@@ -1138,7 +1155,7 @@ export const videoRouter = router({
         ]);
         return { success: true };
     })),
-    getChapters: publicProcedure
+    getChapters: protectedProcedure
         .input(z.object({ videoId: z.string() }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
         return prisma.video_chapters.findMany({
@@ -1200,7 +1217,7 @@ export const videoRouter = router({
         yield prisma.video_cards.delete({ where: { id: cardId } });
         return { success: true };
     })),
-    getCards: publicProcedure
+    getCards: protectedProcedure
         .input(z.object({ videoId: z.string() }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
         return prisma.video_cards.findMany({

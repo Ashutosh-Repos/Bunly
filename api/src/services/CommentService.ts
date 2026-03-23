@@ -51,6 +51,42 @@ export class CommentService {
     };
 
     /**
+     * Helper to verify if a user has read/write access to a video's comments.
+     */
+    private static async verifyVideoAccess(videoId: string, userId?: string) {
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: {
+                visibility: true,
+                processingStatus: true,
+                deletedAt: true,
+                channels: { select: { userId: true } },
+            },
+        });
+
+        if (!video || video.deletedAt) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Video not found",
+            });
+        }
+
+        const isOwner = video.channels?.userId === userId;
+        const isPubliclyAvailable =
+            (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+            video.processingStatus === "READY";
+
+        if (!isPubliclyAvailable && !isOwner) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Video not found or is unavailable",
+            });
+        }
+
+        return true;
+    }
+
+    /**
      * Get comments for a video with tiered caching.
      * - Page 1 is cached in Redis for 5 minutes.
      * - Subsequent pages hit the DB using cursor pagination.
@@ -62,6 +98,8 @@ export class CommentService {
         limit: number = 20,
         userId?: string,
     ) {
+        // 0. Security Guard (Must run on every request regardless of cache)
+        await this.verifyVideoAccess(videoId, userId);
         // 1. Try Cache for First Page
         const isFirstPage = !cursor;
         const cacheKey = this.KEYS.list(videoId, sortBy);
@@ -300,6 +338,9 @@ export class CommentService {
         content: string,
         parentId?: string,
     ) {
+        // 0. Security Guard
+        await this.verifyVideoAccess(videoId, userId);
+
         let effectiveParentId = parentId;
 
         if (parentId) {

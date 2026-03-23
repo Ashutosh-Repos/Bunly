@@ -165,15 +165,43 @@ export const channelRouter = router({
         }),
 
     deleteChannel: channelProcedure.mutation(async ({ ctx }) => {
-        // Soft-delete: preserves all video records and analytics.
-        // A background job should later clean up associated S3 objects.
-        await prisma.channels.update({
-            where: { id: ctx.channel.id },
-            data: {
-                deletedAt: new Date(),
-                status: "SUSPENDED",
-            },
+        const userId = ctx.session.user.id;
+        const channelId = ctx.channel.id;
+
+        await prisma.$transaction(async (tx) => {
+            // 1. Soft-delete the channel
+            await tx.channels.update({
+                where: { id: channelId },
+                data: {
+                    deletedAt: new Date(),
+                    status: "SUSPENDED",
+                },
+            });
+
+            // 2. Cascade delete User's subscriptions (Data Consistency)
+            // The user deleting their channel profile effectively deletes their public presence.
+            const userSubs = await tx.subscriptions.findMany({
+                where: { subscriberId: userId },
+                select: { channelId: true },
+            });
+
+            if (userSubs.length > 0) {
+                const subbedChannelIds = userSubs.map((s) => s.channelId);
+
+                // Decrement remote channels' subscriber counts
+                await tx.channels.updateMany({
+                    where: { id: { in: subbedChannelIds } },
+                    data: { subscriberCount: { decrement: 1 } },
+                });
+
+                // Purge the subscription records
+                await tx.subscriptions.deleteMany({
+                    where: { subscriberId: userId },
+                });
+            }
         });
+
+        // A background job should later clean up associated S3 objects.
         return { success: true };
     }),
 

@@ -1512,7 +1512,7 @@ export const videoRouter = router({
             return { success: true };
         }),
 
-    getChapters: publicProcedure
+    getChapters: protectedProcedure
         .input(z.object({ videoId: z.string() }))
         .query(async ({ input }) => {
             return prisma.video_chapters.findMany({
@@ -1589,7 +1589,7 @@ export const videoRouter = router({
             return { success: true };
         }),
 
-    getCards: publicProcedure
+    getCards: protectedProcedure
         .input(z.object({ videoId: z.string() }))
         .query(async ({ input }) => {
             return prisma.video_cards.findMany({

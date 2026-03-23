@@ -200,4 +200,58 @@ export const commentRouter = router({
                 ctx.session.user.id,
             );
         }),
+
+    getChannelComments: protectedProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+                cursor: z.string().nullish(),
+                limit: z.number().min(1).max(50).optional().default(20),
+            })
+        )
+        .query(async ({ ctx, input }) => {
+            const { channelId, cursor, limit } = input;
+            
+            // First verify user owns the channel
+            const channel = await prisma.channels.findUnique({
+                where: { id: channelId },
+                select: { userId: true }
+            });
+
+            if (!channel || channel.userId !== ctx.session.user.id) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
+            }
+
+            const items = await prisma.comments.findMany({
+                where: {
+                    videos: { channelId },
+                    status: "VISIBLE",
+                    deletedAt: null
+                },
+                take: limit + 1,
+                cursor: cursor ? { id: cursor } : undefined,
+                skip: cursor ? 1 : 0,
+                orderBy: { createdAt: "desc" },
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                            image: true,
+                            channels: { select: { handle: true, name: true, image: true }, take: 1 }
+                        }
+                    },
+                    videos: {
+                        select: { id: true, title: true, thumbnailUrl: true }
+                    }
+                }
+            });
+
+            let nextCursor: string | undefined = undefined;
+            if (items.length > limit) {
+                const nextItem = items.pop();
+                nextCursor = nextItem?.id;
+            }
+
+            return { items, nextCursor };
+        }),
 });

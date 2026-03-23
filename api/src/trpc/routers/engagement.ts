@@ -17,6 +17,40 @@ async function getReaction(
     return db?.type ?? null;
 }
 
+/**
+ * Ensures the target video exists, is not soft-deleted, and is visible to the requesting user.
+ */
+async function verifyEngagementAccess(videoId: string, userId: string) {
+    const video = await prisma.videos.findUnique({
+        where: { id: videoId },
+        select: {
+            visibility: true,
+            processingStatus: true,
+            deletedAt: true,
+            channels: { select: { userId: true } },
+        },
+    });
+
+    if (!video || video.deletedAt) {
+        throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Content not found",
+        });
+    }
+
+    const isOwner = video.channels?.userId === userId;
+    const isPubliclyAvailable =
+        (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+        video.processingStatus === "READY";
+
+    if (!isPubliclyAvailable && !isOwner) {
+        throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Content not available for engagement",
+        });
+    }
+}
+
 export const engagementRouter = router({
     /**
      * Toggle Like on a video.
@@ -28,6 +62,8 @@ export const engagementRouter = router({
         .mutation(async ({ ctx, input }) => {
             const userId = ctx.session.user.id;
             const { videoId } = input;
+
+            await verifyEngagementAccess(videoId, userId);
 
             const currentReaction = await getReaction(userId, videoId);
 
@@ -52,6 +88,8 @@ export const engagementRouter = router({
         .mutation(async ({ ctx, input }) => {
             const userId = ctx.session.user.id;
             const { videoId } = input;
+
+            await verifyEngagementAccess(videoId, userId);
 
             const currentReaction = await getReaction(userId, videoId);
 

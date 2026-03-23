@@ -127,6 +127,46 @@ export class FeedService {
     }
 
     /**
+     * Get user's liked videos (Library dashboard)
+     */
+    public static async getLikedVideos(
+        userId: string,
+        cursor: FeedCursor = 0,
+    ): Promise<{
+        videos: HydratedVideo[];
+        nextCursor: FeedCursor | undefined;
+    }> {
+        const limit = this.PAGE_SIZE;
+        try {
+            const videos = await prisma.$queryRaw<RawFeedRow[]>`
+                SELECT
+                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                    c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
+                    c."subscriberCount" as "channelSubscriberCount",
+                    v."viewCount", v."createdAt", v.duration, v."isShort"
+                FROM video_reactions r
+                INNER JOIN videos v ON r."videoId" = v.id
+                INNER JOIN channels c ON v."channelId" = c.id
+                WHERE r."userId" = ${userId}
+                  AND r.type = 'LIKE'
+                  AND v.visibility = 'PUBLIC'
+                  AND v."processingStatus" = 'READY'
+                  AND v."deletedAt" IS NULL
+                  AND c.status = 'ACTIVE'
+                ORDER BY r."createdAt" DESC
+                LIMIT ${limit} OFFSET ${cursor};
+            `;
+            return this.formatResponse(videos, cursor, limit);
+        } catch (error) {
+            console.error("[FeedService] getLikedVideos failed", error);
+            throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to fetch liked videos",
+            });
+        }
+    }
+
+    /**
      * Core feed query builder.
      *
      * Deduplicates 8 nearly-identical SQL variants (4 feeds × 2 auth states)

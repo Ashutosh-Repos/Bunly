@@ -16,6 +16,19 @@ export const feedRouter = router({
             );
         }),
 
+    getLikedVideos: protectedProcedure
+        .input(
+            z.object({
+                cursor: feedCursorSchema.optional(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            return await FeedService.getLikedVideos(
+                ctx.session.user.id,
+                input.cursor,
+            );
+        }),
+
     getHomeFeed: protectedProcedure
         .input(
             z.object({

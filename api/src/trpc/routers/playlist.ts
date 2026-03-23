@@ -367,6 +367,7 @@ export const playlistRouter = router({
                                     name: true,
                                     handle: true,
                                     image: true,
+                                    userId: true,
                                 },
                             },
                         },
@@ -384,13 +385,31 @@ export const playlistRouter = router({
             const videos = items.map((item) => {
                 const { channels, ...restVideo } = item.videos;
 
+                // Security: Mask PRIVATE video details if requester is not the video's owner
+                const isVideoOwner = channels?.userId === ctx.session.user.id;
+                const isPrivate = restVideo.visibility === "PRIVATE";
+
+                if (isPrivate && !isVideoOwner) {
+                    restVideo.title = "[Private Video]";
+                    restVideo.thumbnailUrl = null;
+                    restVideo.duration = 0;
+                    restVideo.viewCount = 0;
+                    restVideo.likeCount = 0;
+                    restVideo.dislikeCount = 0;
+                    if (channels) {
+                        channels.name = "";
+                        channels.handle = "";
+                        channels.image = null;
+                    }
+                }
+
                 return {
                     ...restVideo,
                     channelId: channels?.id || "",
                     channels: {
                         id: channels?.id || "",
-                        name: channels?.name || null,
-                        handle: channels?.handle || null,
+                        name: channels?.name || "",
+                        handle: channels?.handle || "",
                         image: channels?.image || null,
                     },
                     position: item.position,
@@ -558,6 +577,57 @@ export const playlistRouter = router({
         }),
 
     /**
+     * List all public playlists for a channel (Public Profile Playlists tab).
+     */
+    getPublicChannelPlaylists: protectedProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            const { channelId } = input;
+
+            const playlists = await prisma.playlists.findMany({
+                where: {
+                    channelId,
+                    deletedAt: null,
+                    visibility: { in: ["PUBLIC", "UNLISTED"] },
+                },
+                orderBy: { updatedAt: "desc" },
+                include: {
+                    _count: {
+                        select: { playlist_videos: true },
+                    },
+                    channels: {
+                        select: { name: true }
+                    },
+                    playlist_videos: {
+                        take: 1,
+                        orderBy: { position: "asc" },
+                        select: {
+                            videos: {
+                                select: { thumbnailUrl: true },
+                            },
+                        },
+                    },
+                },
+            });
+
+            return {
+                success: true,
+                playlists: playlists.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        firstVideoThumbnail:
+                            playlist_videos[0]?.videos.thumbnailUrl ?? null,
+                    };
+                }),
+            };
+        }),
+
+    /**
      * List all playlists across all channels for the current user (Save to Playlist dialog).
      */
     getUserPlaylists: protectedProcedure
@@ -672,62 +742,6 @@ export const playlistRouter = router({
                         channelHandle: pv.videos.channels?.handle || null,
                         position: pv.position,
                     })),
-            };
-        }),
-
-    getPublicChannelPlaylists: publicProcedure
-        .input(
-            z.object({
-                channelId: z.string(),
-                limit: z.number().min(1).max(50).default(20),
-                cursor: z.string().optional(),
-            }),
-        )
-        .query(async ({ input }) => {
-            const { channelId, limit, cursor } = input;
-
-            const playlists = await prisma.playlists.findMany({
-                where: {
-                    channelId,
-                    visibility: "PUBLIC",
-                    deletedAt: null,
-                },
-                take: limit + 1,
-                cursor: cursor ? { id: cursor } : undefined,
-                orderBy: { updatedAt: "desc" },
-                include: {
-                    _count: {
-                        select: { playlist_videos: true },
-                    },
-                    playlist_videos: {
-                        take: 1,
-                        orderBy: { position: "asc" },
-                        select: {
-                            videos: {
-                                select: { thumbnailUrl: true },
-                            },
-                        },
-                    },
-                },
-            });
-
-            let nextCursor: string | undefined = undefined;
-            if (playlists.length > limit) {
-                const nextItem = playlists.pop();
-                nextCursor = nextItem?.id;
-            }
-
-            return {
-                success: true,
-                playlists: playlists.map((p) => {
-                    const { playlist_videos, ...rest } = p;
-                    return {
-                        ...rest,
-                        firstVideoThumbnail:
-                            playlist_videos[0]?.videos?.thumbnailUrl ?? null,
-                    };
-                }),
-                nextCursor,
             };
         }),
 });

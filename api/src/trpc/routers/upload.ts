@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3Client } from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import config from "../../lib/config.js";
 
 // We use the same public endpoint configuration as storage.ts
@@ -44,20 +44,26 @@ export const uploadRouter = router({
             const cleanFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
             const key = `uploads/${type}/${userId}/${timestamp}-${cleanFilename}`;
 
-            const command = new PutObjectCommand({
+            // Enforce hard 5MB limit for images
+            const MAX_FILE_SIZE = 5 * 1024 * 1024; 
+
+            const { url, fields } = await createPresignedPost(signerClient, {
                 Bucket: config.s3.bucket,
                 Key: key,
-                ContentType: contentType,
-            });
-
-            // The URL expires depending on environment configs, usually 1 hour.
-            const url = await getSignedUrl(signerClient, command, {
-                expiresIn: config.upload.presignedUrlExpiry,
+                Conditions: [
+                    ["content-length-range", 0, MAX_FILE_SIZE],
+                    ["starts-with", "$Content-Type", contentType],
+                ],
+                Fields: {
+                    "Content-Type": contentType,
+                },
+                Expires: config.upload.presignedUrlExpiry,
             });
 
             return {
                 success: true,
                 url,
+                fields,
                 key,
             };
         }),

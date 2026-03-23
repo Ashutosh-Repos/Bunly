@@ -61,19 +61,20 @@ const ImageUpload = ({
                 type: type,
             });
             
-            if (!result || !result.url || !result.key) {
+            if (!result || !result.url || !result.key || !result.fields) {
                 throw new Error("Failed to get upload URL");
             }
 
-            const { url, key } = result;
+            const { url, key, fields } = result;
 
-            // 2. Upload to S3
+            // 2. Upload to S3 via POST form-data
+            const formData = new FormData();
+            Object.entries(fields).forEach(([k, v]) => formData.append(k, v as string));
+            formData.append("file", file);
+
             const uploadResponse = await fetch(url, {
-                method: "PUT",
-                body: file,
-                headers: {
-                    "Content-Type": file.type,
-                },
+                method: "POST",
+                body: formData,
             });
 
             if (!uploadResponse.ok) {

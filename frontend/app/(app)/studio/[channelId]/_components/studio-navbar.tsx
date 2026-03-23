@@ -40,6 +40,18 @@ export function StudioNavbar() {
                     </Link>
                 </div>
                 
+                <div className="flex flex-1 items-center gap-6 px-12">
+                    <Link href={`/studio/${channel.id}/content`} className="text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/30 px-3 py-1.5 rounded-md transition-all">
+                        Content
+                    </Link>
+                    <Link href={`/studio/${channel.id}/comments`} className="text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/30 px-3 py-1.5 rounded-md transition-all">
+                        Comments
+                    </Link>
+                    <Link href={`/studio/${channel.id}/community`} className="text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/30 px-3 py-1.5 rounded-md transition-all">
+                        Community
+                    </Link>
+                </div>
+                
                 <div className="flex items-center gap-3">
                     <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background data-[state=open]:bg-muted">
                         <IconVideoPlus className="h-4 w-4" />

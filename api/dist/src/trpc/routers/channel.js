@@ -40,7 +40,12 @@ export const createChannelSchema = z.object({
     description: z.string().trim().max(5000).optional(),
     image: z.string().optional().or(z.literal("")),
     bannerUrl: z.string().optional().or(z.literal("")),
-    contactEmail: z.email().optional(),
+    contactEmail: z
+        .string()
+        .email()
+        .optional()
+        .or(z.literal(""))
+        .transform((val) => (val === "" ? null : val)),
     location: z.string().trim().max(100).optional(),
     links: z.array(linkSchema).max(20).optional(),
     tags: z.array(z.string().trim()).max(50).optional(),
@@ -94,16 +99,7 @@ export const channelRouter = router({
         }
     })),
     updateChannel: channelProcedure
-        .input(createChannelSchema
-        .extend({
-        featureFlags: z
-            .object({
-            canLiveStream: z.boolean().optional(),
-            canUpload: z.boolean().optional(),
-        })
-            .optional(),
-    })
-        .partial())
+        .input(createChannelSchema.partial())
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { tags, channelId: _channelId } = input, data = __rest(input, ["tags", "channelId"]);
         const channelId = ctx.channel.id;
@@ -155,15 +151,37 @@ export const channelRouter = router({
         }
     })),
     deleteChannel: channelProcedure.mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx }) {
-        // Soft-delete: preserves all video records and analytics.
+        const userId = ctx.session.user.id;
+        const channelId = ctx.channel.id;
+        yield prisma.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            // 1. Soft-delete the channel
+            yield tx.channels.update({
+                where: { id: channelId },
+                data: {
+                    deletedAt: new Date(),
+                    status: "SUSPENDED",
+                },
+            });
+            // 2. Cascade delete User's subscriptions (Data Consistency)
+            // The user deleting their channel profile effectively deletes their public presence.
+            const userSubs = yield tx.subscriptions.findMany({
+                where: { subscriberId: userId },
+                select: { channelId: true },
+            });
+            if (userSubs.length > 0) {
+                const subbedChannelIds = userSubs.map((s) => s.channelId);
+                // Decrement remote channels' subscriber counts
+                yield tx.channels.updateMany({
+                    where: { id: { in: subbedChannelIds } },
+                    data: { subscriberCount: { decrement: 1 } },
+                });
+                // Purge the subscription records
+                yield tx.subscriptions.deleteMany({
+                    where: { subscriberId: userId },
+                });
+            }
+        }));
         // A background job should later clean up associated S3 objects.
-        yield prisma.channels.update({
-            where: { id: ctx.channel.id },
-            data: {
-                deletedAt: new Date(),
-                status: "SUSPENDED",
-            },
-        });
         return { success: true };
     })),
     toggleSubscription: protectedProcedure

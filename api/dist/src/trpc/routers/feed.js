@@ -11,6 +11,20 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
 import { FeedService, feedCursorSchema } from "../../services/FeedService";
 export const feedRouter = router({
+    getSubscriptionsFeed: protectedProcedure
+        .input(z.object({
+        cursor: feedCursorSchema.optional(),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return yield FeedService.getSubscriptionsFeed(ctx.session.user.id, input.cursor);
+    })),
+    getLikedVideos: protectedProcedure
+        .input(z.object({
+        cursor: feedCursorSchema.optional(),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return yield FeedService.getLikedVideos(ctx.session.user.id, input.cursor);
+    })),
     getHomeFeed: protectedProcedure
         .input(z.object({
         cursor: feedCursorSchema.optional(),

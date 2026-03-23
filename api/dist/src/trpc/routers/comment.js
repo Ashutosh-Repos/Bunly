@@ -136,4 +136,50 @@ export const commentRouter = router({
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         return CommentService.deleteComment(input.commentId, ctx.session.user.id);
     })),
+    getChannelComments: protectedProcedure
+        .input(z.object({
+        channelId: z.string(),
+        cursor: z.string().nullish(),
+        limit: z.number().min(1).max(50).optional().default(20),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const { channelId, cursor, limit } = input;
+        // First verify user owns the channel
+        const channel = yield prisma.channels.findUnique({
+            where: { id: channelId },
+            select: { userId: true }
+        });
+        if (!channel || channel.userId !== ctx.session.user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
+        }
+        const items = yield prisma.comments.findMany({
+            where: {
+                videos: { channelId },
+                status: "VISIBLE",
+                deletedAt: null
+            },
+            take: limit + 1,
+            cursor: cursor ? { id: cursor } : undefined,
+            skip: cursor ? 1 : 0,
+            orderBy: { createdAt: "desc" },
+            include: {
+                user: {
+                    select: {
+                        name: true,
+                        image: true,
+                        channels: { select: { handle: true, name: true, image: true }, take: 1 }
+                    }
+                },
+                videos: {
+                    select: { id: true, title: true, thumbnailUrl: true }
+                }
+            }
+        });
+        let nextCursor = undefined;
+        if (items.length > limit) {
+            const nextItem = items.pop();
+            nextCursor = nextItem === null || nextItem === void 0 ? void 0 : nextItem.id;
+        }
+        return { items, nextCursor };
+    })),
 });

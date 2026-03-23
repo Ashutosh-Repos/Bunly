@@ -1,11 +1,13 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { HomeClient } from "./_components/home-client";
 
-/**
- * Home page — redirects authenticated users to /me.
- *
- * The (app) layout already enforces auth + onboarding,
- * so any user reaching here is fully authenticated.
- */
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+    title: "Bunly - Home",
+    description: "Welcome back to Bunly. Watch, share, and enjoy videos.",
+};
+
 export default function HomePage() {
-    redirect("/me");
+    return <HomeClient />;
 }

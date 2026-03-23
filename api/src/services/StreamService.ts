@@ -6,14 +6,12 @@ export class StreamService {
      * Uses HyperLogLog for unique counts and Atomic Counters for total views.
      */
     static async addViewItem(videoId: string, ip: string, userAgent: string) {
-        // 1. Check uniqueness using HyperLogLog
-        // Key: video:u:{videoId}
-        const uniqueKey = `video:u:${videoId}`;
-        const uniqueElement = `${ip}|${userAgent}`; // Use pipe for safer isolation
-
-        const isNew = await redis.pfadd(uniqueKey, uniqueElement);
-        // Always refresh TTL to maintain a consistent 24h de-duplication window
-        await redis.expire(uniqueKey, 86400);
+        // 1. Check uniqueness using standard Expiry Token
+        // Key: view_lock:{videoId}:{ip}
+        const lockKey = `view_lock:${videoId}:${ip}`;
+        
+        // Set the key only if it does not exist (NX), with a 12 hour expiry (EX 43200)
+        const isNew = await redis.set(lockKey, "1", "EX", 43200, "NX");
 
         if (isNew) {
             // 2. Increment buffer (Hash + Dirty Set)

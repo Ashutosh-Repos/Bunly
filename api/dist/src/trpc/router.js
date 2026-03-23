@@ -67,10 +67,10 @@ const enforceChannelOwnership = t.middleware((_a) => __awaiter(void 0, [_a], voi
     const channel = yield prisma.channels.findUnique({
         where: { id: channelId },
     });
-    if (!channel) {
+    if (!channel || channel.deletedAt !== null) {
         throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Channel not found",
+            message: "Channel not found or has been deleted",
         });
     }
     const isOwner = channel.userId === ctx.session.user.id;

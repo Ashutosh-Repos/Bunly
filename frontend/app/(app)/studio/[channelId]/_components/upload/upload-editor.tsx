@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useUpload } from "@/components/providers/upload-provider";
@@ -180,7 +180,7 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
 
     // C5: Determine action button label
     const isOnVisibilityStep = activeStepIndex === STEPS.length - 1;
-    const selectedVisibility = methods.watch("visibility");
+    const selectedVisibility = useWatch({ control: methods.control, name: "visibility" });
     const isPublishing = isOnVisibilityStep && selectedVisibility === "PUBLIC";
     const isProcessingReady = videoData?.processingStatus === "READY";
     const isStillProcessing = videoData?.processingStatus === "PROCESSING" || videoData?.processingStatus === "PENDING";
