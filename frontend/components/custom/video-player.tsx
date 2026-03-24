@@ -15,9 +15,12 @@ import {
 
 interface VideoPlayerProps {
     videoId: string;
+    hlsPlaylistUrl?: string | null;
     thumbnailUrl?: string | null;
     autoPlay?: boolean;
+    startAt?: number;
     previewSpriteVtt?: string | null;
+    chapters?: { title: string; startTime: number }[];
     onReady?: () => void;
     onError?: (error: unknown) => void;
     onTimeUpdate?: (seconds: number) => void;
@@ -25,9 +28,12 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({
     videoId,
+    hlsPlaylistUrl,
     thumbnailUrl,
     autoPlay = false,
+    startAt,
     previewSpriteVtt,
+    chapters,
     onReady,
     onError,
     onTimeUpdate,
@@ -36,15 +42,26 @@ export function VideoPlayer({
     const containerRef = useRef<HTMLDivElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const progressBarRef = useRef<HTMLDivElement>(null);
+    const settingsRef = useRef<HTMLDivElement>(null);
     const vttCuesRef = useRef<VTTCue[]>([]);
     const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const [isPlaying, setIsPlaying] = useState(autoPlay);
+    // Stable refs for callback props — prevents HLS effect from re-running on every parent render
+    const onReadyRef = useRef(onReady);
+    const onErrorRef = useRef(onError);
+    const onTimeUpdateRef = useRef(onTimeUpdate);
+    useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
+    useEffect(() => { onErrorRef.current = onError; }, [onError]);
+    useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
+
+    // FIX: Initialize isPlaying=false — let the play/pause DOM events set it correctly
+    const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [buffered, setBuffered] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [isMuted, setIsMuted] = useState(false);
+    // FIX: Start muted when autoPlay is true — browser policy allows muted autoplay
+    const [isMuted, setIsMuted] = useState(autoPlay);
     const [volume, setVolume] = useState(1);
-    // Fullscreen state derived from document — synced in useEffect below
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [controlsVisible, setControlsVisible] = useState(true);
     const [showSettings, setShowSettings] = useState(false);
@@ -53,17 +70,55 @@ export function VideoPlayer({
     const [hoverTime, setHoverTime] = useState<number | null>(null);
     const [hoverX, setHoverX] = useState(0);
     const [hoverThumb, setHoverThumb] = useState<string | null>(null);
+    const [hoverChapter, setHoverChapter] = useState<string | null>(null);
 
+    // FIX: Filter both AbortError (React hot-reload) AND NotAllowedError (autoplay policy)
+    const safePlay = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+            playPromise.catch((error) => {
+                if (error.name !== "AbortError" && error.name !== "NotAllowedError") {
+                    console.error("Playback error:", error);
+                }
+            });
+        }
+    }, []);
 
+    // Compute segmented chapters to divide the progress bar
+    const computedChapters = React.useMemo(() => {
+        if (!chapters || chapters.length === 0 || duration === 0) return null;
+        
+        const sorted = [...chapters].sort((a, b) => a.startTime - b.startTime);
+        if (sorted[0].startTime > 0) {
+            sorted.unshift({ title: "Intro", startTime: 0 });
+        }
 
-    // Load VTT for sprite preview (M9)
+        return sorted.map((chapter, i) => {
+            const nextChapterTime = sorted[i + 1]?.startTime ?? duration;
+            const segmentDuration = Math.max(0, nextChapterTime - chapter.startTime);
+            const widthPercent = (segmentDuration / duration) * 100;
+            
+            return {
+                ...chapter,
+                endTime: nextChapterTime,
+                widthPercent,
+                segmentDuration
+            };
+        });
+    }, [chapters, duration]);
+
+    // FIX: Resolve sprite VTT thumbnail URLs through media proxy
     useEffect(() => {
         if (!previewSpriteVtt) return;
         const vttUrl = getMediaUrl(previewSpriteVtt);
+        // Compute the base directory of the VTT file for resolving relative sprite paths
+        const vttBase = previewSpriteVtt.substring(0, previewSpriteVtt.lastIndexOf("/") + 1);
+
         fetch(vttUrl)
             .then((r) => r.text())
             .then((text) => {
-                // Parse VTT manually: extract timestamps + sprite URL
                 const cueBlocks = text.split(/\n\n+/);
                 const cues: VTTCue[] = [];
                 cueBlocks.forEach((block) => {
@@ -76,9 +131,12 @@ export function VideoPlayer({
                         if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
                         return parts[0] * 60 + parts[1];
                     };
-                    const url = lines[lines.length - 1]?.trim();
-                    if (!url) return;
-                    const cue = new VTTCue(parseVttTime(startStr), parseVttTime(endStr), url);
+                    const rawUrl = lines[lines.length - 1]?.trim();
+                    if (!rawUrl) return;
+
+                    // Resolve the sprite URL: if it's relative (no protocol), resolve against VTT base path
+                    const resolvedUrl = rawUrl.startsWith("http") ? rawUrl : getMediaUrl(vttBase + rawUrl);
+                    const cue = new VTTCue(parseVttTime(startStr), parseVttTime(endStr), resolvedUrl);
                     cues.push(cue);
                 });
                 vttCuesRef.current = cues;
@@ -92,12 +150,15 @@ export function VideoPlayer({
         return cue ? cue.text : null;
     }, []);
 
-    // HLS setup (M6: capture levels)
+    // FIX: HLS setup — deps are only [videoId, hlsPlaylistUrl]. Callback props use stable refs.
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        const src = getMediaUrl(`${videoId}/master.m3u8`);
+        const src = hlsPlaylistUrl ? getMediaUrl(hlsPlaylistUrl) : getMediaUrl(`processed/${videoId}/master.m3u8`);
+
+        // FIX: Apply muted state before attempting autoplay (browser policy compliance)
+        if (autoPlay) video.muted = true;
 
         if (Hls.isSupported()) {
             const hls = new Hls({
@@ -109,14 +170,18 @@ export function VideoPlayer({
             hls.attachMedia(video);
 
             hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
-                onReady?.();
-                // M6: Expose quality levels
+                onReadyRef.current?.();
                 const qualityLevels = data.levels.map((lvl, idx) => ({
                     height: lvl.height,
                     index: idx,
                 }));
                 setLevels(qualityLevels);
-                if (autoPlay) video.play().catch(console.error);
+
+                // FIX: Seek to startAt position before playing (legacy initialTime pattern)
+                if (startAt && startAt > 0) {
+                    video.currentTime = startAt;
+                }
+                if (autoPlay) safePlay();
             });
 
             hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
@@ -134,29 +199,48 @@ export function VideoPlayer({
                             break;
                         default:
                             hls.destroy();
-                            onError?.(data);
+                            onErrorRef.current?.(data);
                     }
                 }
             });
         } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+            // Safari native HLS fallback
             video.src = src;
-            video.addEventListener("loadedmetadata", () => {
-                onReady?.();
-                if (autoPlay) video.play().catch(console.error);
-            });
+            const onLoadedMeta = () => {
+                onReadyRef.current?.();
+                if (startAt && startAt > 0) {
+                    video.currentTime = startAt;
+                }
+                if (autoPlay) safePlay();
+            };
+            if (video.readyState >= 1) {
+                onLoadedMeta();
+            } else {
+                video.addEventListener("loadedmetadata", onLoadedMeta, { once: true });
+            }
         }
 
-        return () => hlsRef.current?.destroy();
-    }, [videoId, autoPlay, onReady, onError]);
+        return () => {
+            hlsRef.current?.destroy();
+            hlsRef.current = null;
+        };
+    // Only reconstruct HLS when the video source actually changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [videoId, hlsPlaylistUrl]);
 
-    // Time/state sync
+    // FIX: Time/state sync — uses onTimeUpdateRef for stable reference, no unnecessary re-mounts
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
         const updateTime = () => {
             setProgress(video.currentTime);
-            onTimeUpdate?.(video.currentTime);
+            onTimeUpdateRef.current?.(video.currentTime);
+
+            // FIX: Track buffered range for the buffer progress bar
+            if (video.buffered.length > 0) {
+                setBuffered(video.buffered.end(video.buffered.length - 1));
+            }
         };
         const updateDuration = () => setDuration(video.duration);
         const updatePlayState = () => setIsPlaying(!video.paused);
@@ -172,9 +256,8 @@ export function VideoPlayer({
             video.removeEventListener("play", updatePlayState);
             video.removeEventListener("pause", updatePlayState);
         };
-    }, [onTimeUpdate]);
+    }, []); // Stable — no callback props in deps
 
-    // M7: Fullscreen toggle — declared BEFORE keyboard shortcut useEffect to avoid TDZ
     const toggleMute = useCallback(() => {
         const video = videoRef.current;
         if (!video) return;
@@ -199,7 +282,7 @@ export function VideoPlayer({
         return () => document.removeEventListener("fullscreenchange", onChange);
     }, []);
 
-    // M8: Keyboard shortcuts
+    // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement)?.tagName;
@@ -211,7 +294,7 @@ export function VideoPlayer({
                 case " ":
                 case "k":
                     e.preventDefault();
-                    if (video.paused) { video.play().catch(console.error); } else { video.pause(); }
+                    if (video.paused) { safePlay(); } else { video.pause(); }
                     break;
                 case "f":
                     e.preventDefault();
@@ -243,7 +326,7 @@ export function VideoPlayer({
         };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [toggleFullscreen, toggleMute]);
+    }, [toggleFullscreen, toggleMute, safePlay]);
 
     // Auto-hide controls after 3s of inactivity
     const resetHideTimer = useCallback(() => {
@@ -254,10 +337,22 @@ export function VideoPlayer({
         }, 3000);
     }, []);
 
+    // FIX: Close quality settings on outside click
+    useEffect(() => {
+        if (!showSettings) return;
+        const handler = (e: MouseEvent) => {
+            if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+                setShowSettings(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [showSettings]);
+
     const togglePlay = () => {
         const video = videoRef.current;
         if (!video) return;
-        if (video.paused) { video.play().catch(console.error); } else { video.pause(); }
+        if (video.paused) { safePlay(); } else { video.pause(); }
     };
 
     const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -275,6 +370,11 @@ export function VideoPlayer({
         setHoverTime(time);
         setHoverX(e.clientX - rect.left);
         setHoverThumb(getSpriteThumbUrl(time));
+
+        if (computedChapters) {
+            const chap = computedChapters.find(c => time >= c.startTime && time <= c.endTime);
+            if (chap) setHoverChapter(chap.title);
+        }
     };
 
     const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -287,7 +387,6 @@ export function VideoPlayer({
         setIsMuted(vol === 0);
     };
 
-    // M6: Quality switch
     const setQualityLevel = (level: number) => {
         if (!hlsRef.current) return;
         hlsRef.current.currentLevel = level;
@@ -299,6 +398,9 @@ export function VideoPlayer({
         currentLevel === -1
             ? "Auto"
             : `${levels.find((l) => l.index === currentLevel)?.height ?? "?"}p`;
+
+    // Compute buffer percentage for the buffer indicator bar
+    const bufferPercent = duration ? Math.min(100, (buffered / duration) * 100) : 0;
 
     return (
         <div
@@ -325,19 +427,65 @@ export function VideoPlayer({
                 <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
                 <div className="relative pointer-events-auto px-4 pb-4 flex flex-col gap-2">
-                    {/* Progress bar with seek preview (M9) */}
+                    {/* Progress bar with seek preview */}
                     <div
                         ref={progressBarRef}
-                        className="relative w-full h-1.5 bg-white/20 rounded-full cursor-pointer hover:h-2.5 transition-all"
+                        className="relative w-full h-1.5 flex gap-[2px] cursor-pointer hover:h-2.5 transition-all group/progress"
                         onClick={handleProgressClick}
                         onMouseMove={handleProgressHover}
-                        onMouseLeave={() => { setHoverTime(null); setHoverThumb(null); }}
+                        onMouseLeave={() => { setHoverTime(null); setHoverThumb(null); setHoverChapter(null); }}
                     >
-                        <div
-                            className="absolute top-0 left-0 h-full bg-red-600 rounded-full"
-                            style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }}
-                        />
-                        {/* Seek preview tooltip (M9) */}
+                        {computedChapters ? (
+                            computedChapters.map((chap, i) => {
+                                let fillPercent = 0;
+                                if (progress >= chap.endTime) {
+                                    fillPercent = 100;
+                                } else if (progress > chap.startTime) {
+                                    fillPercent = ((progress - chap.startTime) / chap.segmentDuration) * 100;
+                                }
+
+                                // Compute per-chapter buffer fill
+                                let bufferFillPercent = 0;
+                                if (buffered >= chap.endTime) {
+                                    bufferFillPercent = 100;
+                                } else if (buffered > chap.startTime) {
+                                    bufferFillPercent = ((buffered - chap.startTime) / chap.segmentDuration) * 100;
+                                }
+
+                                return (
+                                    <div 
+                                        key={i} 
+                                        className="relative h-full bg-white/20 rounded-sm overflow-hidden"
+                                        style={{ width: `${chap.widthPercent}%` }}
+                                    >
+                                        {/* Buffer bar */}
+                                        <div 
+                                            className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150"
+                                            style={{ width: `${Math.max(0, Math.min(100, bufferFillPercent))}%` }}
+                                        />
+                                        {/* Played bar */}
+                                        <div 
+                                            className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75"
+                                            style={{ width: `${Math.max(0, Math.min(100, fillPercent))}%` }}
+                                        />
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="relative w-full h-full bg-white/20 rounded-full overflow-hidden">
+                                {/* FIX: Buffer progress bar */}
+                                <div
+                                    className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150"
+                                    style={{ width: `${bufferPercent}%` }}
+                                />
+                                <div
+                                    className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75"
+                                    style={{ width: `${duration ? Math.min(100, (progress / duration) * 100) : 0}%` }}
+                                />
+                            </div>
+                        )}
+                        
+                        {/* Seek preview tooltip */}
                         {hoverTime !== null && (
                             <div
                                 className="absolute bottom-4 flex flex-col items-center gap-1 pointer-events-none"
@@ -347,7 +495,12 @@ export function VideoPlayer({
                                     /* eslint-disable-next-line @next/next/no-img-element */
                                     <img src={hoverThumb} alt="" className="w-28 h-16 rounded shadow-lg border border-white/10 object-cover" />
                                 )}
-                                <span className="text-xs bg-black/80 text-white px-1.5 py-0.5 rounded font-mono">
+                                {hoverChapter && (
+                                    <span className="text-xs bg-black/80 text-white px-2 py-0.5 rounded font-medium whitespace-nowrap shadow-sm">
+                                        {hoverChapter}
+                                    </span>
+                                )}
+                                <span className="text-xs bg-black/80 text-white px-1.5 py-0.5 rounded font-mono shadow-sm">
                                     {formatDuration(hoverTime)}
                                 </span>
                             </div>
@@ -389,9 +542,9 @@ export function VideoPlayer({
 
                         {/* Right controls */}
                         <div className="flex items-center gap-3 relative">
-                            {/* M6: Quality Selector */}
+                            {/* Quality Selector */}
                             {levels.length > 0 && (
-                                <div className="relative">
+                                <div ref={settingsRef} className="relative">
                                     <button
                                         onClick={() => setShowSettings(v => !v)}
                                         className="flex items-center gap-1 text-xs hover:text-red-400 transition-colors"
@@ -423,7 +576,7 @@ export function VideoPlayer({
                                 </div>
                             )}
 
-                            {/* M7: Fullscreen button */}
+                            {/* Fullscreen button */}
                             <button onClick={toggleFullscreen} className="hover:text-red-500 transition-colors" title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
                                 {isFullscreen ? <IconMinimize size={20} /> : <IconMaximize size={20} />}
                             </button>

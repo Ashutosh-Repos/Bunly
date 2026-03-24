@@ -23,6 +23,19 @@ import { prisma } from "./lib/prisma.js";
 import redis, { bullMQRedis } from "./lib/redis.js";
 import { redisSubscriptionManager } from "./lib/ws/redisSubscription.js";
 import { REDIS_KEYS } from "./lib/ws/definitions.js";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import config from "./lib/config.js";
+import { getPresignedGetUrl } from "./lib/storage.js";
+// Shared S3Client for media proxy — avoids creating a new client per .m3u8 request
+const mediaProxyS3 = new S3Client({
+    region: config.s3.region,
+    endpoint: config.s3.endpoint,
+    credentials: {
+        accessKeyId: config.s3.accessKeyId,
+        secretAccessKey: config.s3.secretAccessKey,
+    },
+    forcePathStyle: true,
+});
 const port = env.PORT;
 const origin = env.CORS_ORIGIN;
 const server = Fastify({
@@ -161,23 +174,11 @@ server.get("/api/media/*", (req, reply) => __awaiter(void 0, void 0, void 0, fun
         // HLS Text Manifests (.m3u8) MUST be downloaded and served as text by Fastify
         // This ensures the browser's base URL is the Fastify domain for relative chunk resolution.
         if (key.endsWith(".m3u8")) {
-            const { S3Client, GetObjectCommand } = yield import("@aws-sdk/client-s3");
-            const config = (yield import("./lib/config.js")).default;
-            const internalEndpoint = config.s3.endpoint;
-            const s3Client = new S3Client({
-                region: config.s3.region,
-                endpoint: internalEndpoint,
-                credentials: {
-                    accessKeyId: config.s3.accessKeyId,
-                    secretAccessKey: config.s3.secretAccessKey,
-                },
-                forcePathStyle: true,
-            });
             const command = new GetObjectCommand({
                 Bucket: config.s3.bucket,
                 Key: key,
             });
-            const s3Response = yield s3Client.send(command);
+            const s3Response = yield mediaProxyS3.send(command);
             if (!s3Response.Body) {
                 return reply.status(404).send({ error: "Manifest empty or not found" });
             }
@@ -190,11 +191,12 @@ server.get("/api/media/*", (req, reply) => __awaiter(void 0, void 0, void 0, fun
         }
         // EVERYTHING ELSE (Photos, Avatars, .ts chunks, .vtt sprites) 
         // Generates a Pre-Signed URL and returns a 302 Redirect (Zero Egress!)
-        const { getPresignedGetUrl } = yield import("./lib/storage.js");
         const url = yield getPresignedGetUrl(key);
         // Cache the redirect for 50 minutes (presigned URLs expire in 60m)
+        // Include CORS headers defensively for HLS .ts segment cross-origin requests
         return reply
             .header("Cache-Control", "public, max-age=3000")
+            .header("Access-Control-Allow-Origin", origin)
             .redirect(url);
     }
     catch (error) {

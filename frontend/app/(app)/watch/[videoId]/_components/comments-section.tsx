@@ -36,6 +36,7 @@ export function CommentsSection({ videoId, commentCount }: { videoId: string; co
             setNewCommentText("");
             setShowCommentButtons(false);
             utils.comment.list.invalidate({ videoId });
+            utils.video.getPublicVideo.invalidate({ videoId });
             toast.success("Comment added");
         },
         onError: (err) => {
@@ -147,8 +148,7 @@ export function CommentsSection({ videoId, commentCount }: { videoId: string; co
                 </div>
             ) : (
                 <div className="flex flex-col w-full">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {comments.map((comment: any) => (
+                    {comments.map((comment) => (
                         <CommentItem 
                             key={comment.id} 
                             comment={comment} 

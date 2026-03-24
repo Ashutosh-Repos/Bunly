@@ -11,23 +11,22 @@ export const communityRouter = router({
                 channelId: z.string(),
                 content: z.string().max(10000).optional(),
                 type: z.enum(["TEXT", "IMAGE", "VIDEO_TEASER", "POLL"]),
-                attachments: z.any().optional(), // Or more specific JSON array validation
-                pollOptions: z.any().optional(),
+                attachments: z.array(z.string().url()).max(10).optional(),
+                pollOptions: z.array(z.string().trim().min(1).max(200)).min(2).max(10).optional(),
                 pollEndsAt: z.date().optional(),
             })
         )
         .mutation(async ({ input, ctx }) => {
-            const { channelId, ...data } = input;
-            
-            // Denormalize the channel info into the post like the schema might expect? 
-            // Wait, schema for community_posts:
-            // "channelId", "type", "content", "attachments" (Json), "pollOptions" (Json), "pollResults" (Json), "pollEndsAt"
+            const { channelId, content, type, attachments, pollOptions, pollEndsAt } = input;
 
             return prisma.community_posts.create({
                 data: {
                     channelId,
-                    ...data,
-                    content: data.content || "",
+                    type,
+                    imageUrls: attachments ?? undefined,
+                    pollOptions: pollOptions ?? undefined,
+                    pollEndsAt,
+                    content: content || "",
                 },
             });
         }),
@@ -81,8 +80,9 @@ export const communityRouter = router({
                 limit: z.number().min(1).max(100).optional().default(20),
             })
         )
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
             const { channelId, cursor, limit } = input;
+            const userId = ctx.session.user.id;
 
             const items = await prisma.community_posts.findMany({
                 where: { channelId, deletedAt: null },
@@ -98,7 +98,15 @@ export const communityRouter = router({
                 nextCursor = nextItem?.id;
             }
 
-            return { items, nextCursor };
+            // Enrich with isLiked for the calling user
+            const enrichedItems = await Promise.all(
+                items.map(async (item) => {
+                    const isLiked = await redis.sismember(`community:likes:${item.id}`, userId);
+                    return { ...item, isLiked: isLiked === 1 };
+                })
+            );
+
+            return { items: enrichedItems, nextCursor };
         }),
 
     votePoll: protectedProcedure
@@ -124,6 +132,13 @@ export const communityRouter = router({
                 throw new TRPCError({ code: "BAD_REQUEST", message: "Poll has ended" });
             }
 
+            // Prevent double-voting: track voter in a Redis Set
+            const voterKey = `community:poll_votes:${postId}`;
+            const alreadyVoted = await redis.sismember(voterKey, ctx.session.user.id);
+            if (alreadyVoted) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "You have already voted on this poll" });
+            }
+
             // Atomic jsonb update to avoid race conditions.
             // OptionIndex needs to be cast to string for jsonb_set's path array.
             const idxStr = optionIndex.toString();
@@ -133,10 +148,13 @@ export const communityRouter = router({
                 SET "pollResults" = jsonb_set(
                     COALESCE("pollResults", '{}'),
                     ARRAY[${idxStr}],
-                    (COALESCE(("pollResults"->>${idxStr})::int, 0) + 1)::text::jsonb
+                    (COALESCE(("pollResults"->${idxStr})::int, 0) + 1)::text::jsonb
                 )
                 WHERE id = ${postId} AND type = 'POLL' AND ("pollEndsAt" IS NULL OR "pollEndsAt" > NOW())
             `;
+
+            // Mark user as voted
+            await redis.sadd(voterKey, ctx.session.user.id);
 
             return { success: true };
         }),

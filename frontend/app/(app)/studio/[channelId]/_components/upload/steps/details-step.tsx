@@ -10,11 +10,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc-client";
 import { useUpload } from "@/components/providers/upload-provider";
+import { getMediaUrl } from "@/lib/utils";
 
 export function DetailsStep() {
     const { control, setValue, watch } = useFormContext();
     const [showMore, setShowMore] = useState(false);
+    const [customThumbnailUrl, setCustomThumbnailUrl] = useState<string | null>(null);
     const { videoId } = useUpload();
+    const getPresignedUrl = trpc.upload.getPresignedUrl.useMutation();
 
     const { data: videoData } = trpc.video.getVideo.useQuery(
         { videoId: videoId as string },
@@ -73,10 +76,53 @@ export function DetailsStep() {
                 <h4 className="text-sm font-semibold mb-2">Thumbnail</h4>
                 <p className="text-sm text-muted-foreground mb-4">Select or upload a picture that shows what&apos;s in your video. A good thumbnail stands out and draws viewers&apos; attention.</p>
                 <div className="flex gap-4 flex-wrap">
-                    <div className="border border-dashed aspect-video w-40 flex flex-col gap-2 items-center justify-center rounded bg-muted/50 cursor-pointer hover:bg-muted duration-200">
+                    <label htmlFor="thumbnail-upload" className="border border-dashed aspect-video w-40 flex flex-col gap-2 items-center justify-center rounded bg-muted/50 cursor-pointer hover:bg-muted duration-200">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-image-plus text-muted-foreground"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                         <span className="text-xs font-medium text-muted-foreground">Upload File</span>
-                    </div>
+                        <input id="thumbnail-upload" type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                                // Use the standard upload presigned URL flow
+                                const res = await getPresignedUrl.mutateAsync({
+                                    filename: file.name,
+                                    contentType: file.type,
+                                    type: "thumbnail",
+                                });
+
+                                const formData = new FormData();
+                                Object.entries(res.fields).forEach(([key, value]) => {
+                                    formData.append(key, value as string);
+                                });
+                                formData.append("file", file);
+
+                                await fetch(res.url, {
+                                    method: "POST",
+                                    body: formData,
+                                });
+
+                                setValue("thumbnailUrl", res.key);
+                                setCustomThumbnailUrl(URL.createObjectURL(file));
+                            } catch {
+                                // Silently fail — toast could be added
+                            }
+                        }} />
+                    </label>
+                    {/* Custom uploaded thumbnail preview */}
+                    {(customThumbnailUrl || (currentThumbnail && !generatedOptions.includes(currentThumbnail))) && (
+                        <div 
+                            className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ring-2 ring-primary border-primary`}
+                        >
+                            <img 
+                                src={customThumbnailUrl || getMediaUrl(currentThumbnail)} 
+                                alt="Custom Thumbnail" 
+                                className="object-cover w-full h-full" 
+                            />
+                            <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                        </div>
+                    )}
                     {/* Dynamic generated thumbnails */}
                     {generatedOptions.length > 0 ? (
                         generatedOptions.map((key, i) => (
@@ -87,7 +133,7 @@ export function DetailsStep() {
                             >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img 
-                                    src={`/api/media/${key}`} 
+                                    src={getMediaUrl(key)} 
                                     alt={`Thumbnail option ${i + 1}`} 
                                     className="object-cover w-full h-full"
                                 />

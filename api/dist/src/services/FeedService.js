@@ -81,10 +81,10 @@ export class FeedService {
             try {
                 const videos = yield prisma.$queryRaw `
                 SELECT
-                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                     c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                     c."subscriberCount" as "channelSubscriberCount",
-                    v."viewCount", v."createdAt", v.duration, v."isShort"
+                    v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort"
                 FROM video_reactions r
                 INNER JOIN videos v ON r."videoId" = v.id
                 INNER JOIN channels c ON v."channelId" = c.id
@@ -143,10 +143,10 @@ export class FeedService {
                             ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
-                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                             c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                             c."subscriberCount" as "channelSubscriberCount",
-                            v."viewCount", v."createdAt", v.duration, v."isShort",
+                            v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                             (
                                 v."trendingScore" +
                                 GREATEST(0.0, 5.0 - (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(v."publishedAt", v."createdAt")))/3600.0 / 24.0))
@@ -189,10 +189,10 @@ export class FeedService {
                             )
                         )
                         SELECT
-                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                             c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                             c."subscriberCount" as "channelSubscriberCount",
-                            v."viewCount", v."createdAt", v.duration, v."isShort",
+                            v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                             (
                                 v."hotScore" +
                                 GREATEST(0.0, 5.0 - (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(v."publishedAt", v."createdAt")))/3600.0 / 24.0))
@@ -220,10 +220,10 @@ export class FeedService {
                             ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
-                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                             c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                             c."subscriberCount" as "channelSubscriberCount",
-                            v."viewCount", v."createdAt", v.duration, v."isShort",
+                            v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                             (
                                 v."trendingScore" +
                                 GREATEST(0.0, 5.0 - (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(v."publishedAt", v."createdAt")))/3600.0 / 24.0))
@@ -243,10 +243,10 @@ export class FeedService {
                             (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
                         )
                         SELECT
-                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                            v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                             c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                             c."subscriberCount" as "channelSubscriberCount",
-                            v."viewCount", v."createdAt", v.duration, v."isShort",
+                            v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                             (
                                 v."hotScore" +
                                 GREATEST(0.0, 5.0 - (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(v."publishedAt", v."createdAt")))/3600.0 / 24.0))
@@ -279,10 +279,10 @@ export class FeedService {
                 const limit = this.PAGE_SIZE;
                 const videos = yield prisma.$queryRaw `
                 SELECT
-                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                     c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                     c."subscriberCount" as "channelSubscriberCount",
-                    v."viewCount", v."createdAt", v.duration, v."isShort"
+                    v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort"
                 FROM videos v
                 INNER JOIN channels c ON v."channelId" = c.id
                 INNER JOIN subscriptions s ON c.id = s."channelId"
@@ -327,10 +327,10 @@ export class FeedService {
                 const limit = this.PAGE_SIZE;
                 const videos = yield prisma.$queryRaw `
                 SELECT
-                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                    v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                     c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                     c."subscriberCount" as "channelSubscriberCount",
-                    v."viewCount", v."createdAt", v.duration, v."isShort"
+                    v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort"
                 FROM videos v
                 INNER JOIN channels c ON v."channelId" = c.id
                 WHERE v."channelId" = ${channelId}
@@ -413,10 +413,10 @@ export class FeedService {
                         GROUP BY tv."B"
                     )
                     SELECT
-                        v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                        v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                         c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                         c."subscriberCount" as "channelSubscriberCount",
-                        v."viewCount", v."createdAt", v.duration, v."isShort",
+                        v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                         (
                             v."hotScore" +
                             CASE WHEN v."categoryId" = ${sourceVideo.categoryId} THEN 20.0 ELSE 0.0 END +
@@ -463,10 +463,10 @@ export class FeedService {
                         GROUP BY tv."B"
                     )
                     SELECT
-                        v.id, v.title, v."thumbnailUrl", v."previewSprite", v."channelId",
+                        v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
                         c.name as "channelName", c.handle as "channelHandle", c.image as "channelImage",
                         c."subscriberCount" as "channelSubscriberCount",
-                        v."viewCount", v."createdAt", v.duration, v."isShort",
+                        v."viewCount", v."createdAt", v."publishedAt", v.duration, v."isShort",
                         (
                             v."hotScore" +
                             CASE WHEN v."categoryId" = ${sourceVideo.categoryId} THEN 20.0 ELSE 0.0 END +
@@ -499,6 +499,7 @@ export class FeedService {
             title: v.title,
             thumbnailUrl: v.thumbnailUrl,
             previewSprite: v.previewSprite || null,
+            hlsPlaylistUrl: v.hlsPlaylistUrl || null,
             channelId: v.channelId,
             channels: {
                 id: v.channelId,

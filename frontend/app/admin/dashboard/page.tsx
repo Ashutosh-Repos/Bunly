@@ -20,7 +20,7 @@ export default function AdminDashboardPage() {
     const { data: statsData, refetch: refetchStats } = trpc.admin.getStats.useQuery();
     
     // We fetch reports to review
-    const { data: reportsData, refetch: refetchReports, isLoading } = trpc.report.list.useInfiniteQuery(
+    const { data: reportsData, refetch: refetchReports, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = trpc.report.list.useInfiniteQuery(
         { status: "PENDING", limit: 20 },
         { getNextPageParam: (l) => l.nextCursor }
     );
@@ -168,6 +168,16 @@ export default function AdminDashboardPage() {
                         ))
                     )}
                 </div>
+
+                {/* Pagination */}
+                {hasNextPage && (
+                    <div className="p-4 border-t border-border/20 flex justify-center">
+                        <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                            {isFetchingNextPage ? <IconRefresh size={16} className="mr-2 animate-spin" /> : null}
+                            Load More Reports
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );

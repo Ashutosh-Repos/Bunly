@@ -70,10 +70,8 @@ export default function NotificationsPage() {
     // [REAL-TIME FIX] Safely inject incoming pushes dynamically without unmounting or reloading React
     trpc.notification.onNotification.useSubscription(undefined, {
         enabled: !!user,
-        onData(notificationStr: string) {
+        onData(notification: any) {
             try {
-                const notification = JSON.parse(notificationStr);
-                
                 const updater = (old: InfiniteNotificationData | undefined) => {
                     if (!old) return old;
                     const firstPage = old.pages[0];
@@ -101,7 +99,7 @@ export default function NotificationsPage() {
                 // Add to specific tab dynamically if it matches
                 utils.notification.getUnreadCount.invalidate();
             } catch (err) {
-                console.error("Failed to parse incoming notification stream", err);
+                console.error("Failed to process incoming notification", err);
             }
         },
     });

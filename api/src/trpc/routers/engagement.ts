@@ -53,6 +53,22 @@ async function verifyEngagementAccess(videoId: string, userId: string) {
 
 export const engagementRouter = router({
     /**
+     * Get the current user's reaction (LIKE/DISLIKE/null) for a video.
+     * Used by ShortsClient to hydrate initial engagement state.
+     */
+    getReaction: protectedProcedure
+        .input(z.object({ videoId: z.string().min(1) }))
+        .query(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+            const { videoId } = input;
+
+            const reaction = await getReaction(userId, videoId);
+            const type = reaction === "REMOVE" ? null : reaction;
+
+            return { type };
+        }),
+
+    /**
      * Toggle Like on a video.
      * If already liked, removes like.
      * If disliked, changes to like.
@@ -63,17 +79,13 @@ export const engagementRouter = router({
             const userId = ctx.session.user.id;
             const { videoId } = input;
 
-            await verifyEngagementAccess(videoId, userId);
+            // Parallel: verify access + read current reaction (saves 1 DB round-trip)
+            const [, currentReaction] = await Promise.all([
+                verifyEngagementAccess(videoId, userId),
+                getReaction(userId, videoId),
+            ]);
 
-            const currentReaction = await getReaction(userId, videoId);
-
-            let action: "LIKE" | "REMOVE" | "DISLIKE" = "LIKE";
-
-            if (currentReaction === "LIKE") {
-                action = "REMOVE";
-            } else {
-                action = "LIKE";
-            }
+            const action: "LIKE" | "REMOVE" = currentReaction === "LIKE" ? "REMOVE" : "LIKE";
 
             await StreamService.addReaction(userId, videoId, action);
 
@@ -89,17 +101,13 @@ export const engagementRouter = router({
             const userId = ctx.session.user.id;
             const { videoId } = input;
 
-            await verifyEngagementAccess(videoId, userId);
+            // Parallel: verify access + read current reaction
+            const [, currentReaction] = await Promise.all([
+                verifyEngagementAccess(videoId, userId),
+                getReaction(userId, videoId),
+            ]);
 
-            const currentReaction = await getReaction(userId, videoId);
-
-            let action: "DISLIKE" | "REMOVE" | "LIKE" = "DISLIKE";
-
-            if (currentReaction === "DISLIKE") {
-                action = "REMOVE";
-            } else {
-                action = "DISLIKE";
-            }
+            const action: "DISLIKE" | "REMOVE" = currentReaction === "DISLIKE" ? "REMOVE" : "DISLIKE";
 
             await StreamService.addReaction(userId, videoId, action);
 

@@ -144,7 +144,7 @@ export function transcodeResolution(
     outputDir: string,
     resolution: { width: number; height: number; name: string },
     onProgress?: (percent: number) => void,
-    options?: { sourceAudioCodec?: string },
+    options?: { sourceAudioCodec?: string, signal?: AbortSignal },
 ): Promise<string> {
     return new Promise((resolve, reject) => {
         const cleanName = resolution.name.replace("p", ""); // 1080
@@ -229,6 +229,14 @@ export function transcodeResolution(
             cmd.audioCodec("copy");
         } else {
             cmd.audioCodec("aac").audioBitrate(audioBitrate).audioChannels(2); // Stereo
+        }
+
+        if (options?.signal) {
+            options.signal.addEventListener("abort", () => {
+                console.warn(`[FFmpeg] 🛑 AbortSignal received for ${resolution.name}. Killing child process natively...`);
+                cmd.kill("SIGKILL");
+                reject(new Error("Transcoding aborted by AbortSignal"));
+            });
         }
 
         cmd.output(`${path.join(outputDir, `playlist.m3u8`)}`)

@@ -56,10 +56,10 @@ export const authRouter = router({
             return await auth.api.listSessions({
                 headers: ctx.headers,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: error?.message || "Failed to list sessions",
+                message: error instanceof Error ? error.message : "Failed to list sessions",
             });
         }
     }),

@@ -52,6 +52,8 @@ export async function handleProbeAndSplit(job: Job) {
         resolutions.push(makeRes(2560, 1440, "2k", 10000000));
     if (majorDimension >= 1080)
         resolutions.push(makeRes(1920, 1080, "1080p", 6000000));
+    if (majorDimension >= 720)
+        resolutions.push(makeRes(1280, 720, "720p", 3000000));
     if (majorDimension >= 480)
         resolutions.push(makeRes(854, 480, "480p", 1500000));
     resolutions.push(makeRes(640, 360, "360p", 800000));
@@ -62,7 +64,7 @@ export async function handleProbeAndSplit(job: Job) {
         resCount: resolutions.length,
     });
 
-    const isShort = isPortrait;
+    const isShort = isPortrait && metadata.duration <= 60;
 
     console.log(
         `[Pipeline] 💾 Updating DB for ${videoId} (Status: PROCESSING, isShort: ${isShort})`,

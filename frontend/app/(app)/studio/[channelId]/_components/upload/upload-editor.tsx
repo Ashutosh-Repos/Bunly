@@ -158,12 +158,25 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
         const isValid = await methods.trigger();
         if (!isValid) return;
 
-        if (!videoId) return;
-
-        setSaveIndicator("saving");
+        const formValues = methods.getValues();
+        const { chapters, visibility, scheduledAt, ...rest } = formValues;
+        
+        // Map visibility appropriately
+        let finalVisibility = visibility;
+        const finalScheduledAt = scheduledAt;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((visibility as any) === "SCHEDULED") {
+            finalVisibility = "PRIVATE";
+            // scheduledAt remains passed as is
+        }
+        
         updateMutation.mutate({
-            videoId,
-            ...methods.getValues()
+            videoId: videoId as string,
+            ...rest,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            visibility: finalVisibility as any,
+            scheduledAt: finalScheduledAt,
+            chapters: chapters ? chapters.map(c => ({ title: c.title, startTime: c.startTime })) : undefined
         }, {
             onSuccess: () => {
                 utils.video.getChannelContent.invalidate();
@@ -226,17 +239,24 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
                     </div>
                 )}
 
-                {/* Stepper Navigation */}
-                <div className="flex justify-center border-b p-4">
-                    <nav className="flex items-center space-x-8">
+                {/* Premium Stepper Navigation */}
+                <div className="flex justify-center border-b p-6 bg-muted/10 relative overflow-hidden z-10 shrink-0">
+                    <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+                    <nav className="flex items-center justify-between w-full max-w-2xl relative">
                         {STEPS.map((stepName, i) => (
-                            <div key={stepName} className={`flex items-center flex-col ${i === activeStepIndex ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                                <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-2 ${
-                                    i === activeStepIndex ? "bg-primary/20 text-primary" : i < activeStepIndex ? "bg-green-500/20 text-green-500" : "bg-muted text-muted-foreground"
-                                }`}>
-                                    {i < activeStepIndex ? <IconCheck size={16} /> : i + 1}
+                            <div key={stepName} className="flex-1 flex flex-col items-center relative group">
+                                {/* Connecting Line */}
+                                {i !== STEPS.length - 1 && (
+                                    <div className={`absolute top-4 left-[50%] w-full h-[2px] -z-10 transition-colors duration-500 ${i < activeStepIndex ? 'bg-green-500' : 'bg-muted-foreground/20'}`} />
+                                )}
+                                <div className={`flex flex-col items-center justify-center transition-all duration-300 ${i === activeStepIndex ? "text-primary scale-110" : i < activeStepIndex ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
+                                    <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-3 bg-background border-2 transition-all duration-500 ${
+                                        i === activeStepIndex ? "border-primary text-primary shadow-[0_0_15px_rgba(var(--primary)/25%)]" : i < activeStepIndex ? "border-green-500 bg-green-500 text-primary-foreground" : "border-muted-foreground/30 text-muted-foreground"
+                                    }`}>
+                                        {i < activeStepIndex ? <IconCheck size={16} stroke={3} /> : <span className="text-sm font-bold">{i + 1}</span>}
+                                    </div>
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${i === activeStepIndex ? "bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80 animate-in fade-in" : ""}`}>{stepName}</span>
                                 </div>
-                                <span className="text-sm">{stepName}</span>
                             </div>
                         ))}
                     </nav>

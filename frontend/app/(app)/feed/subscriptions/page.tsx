@@ -1,5 +1,3 @@
-"use client";
-
 import { Suspense } from "react";
 import { SubscriptionsClient } from "./_components/subscriptions-client";
 

@@ -60,7 +60,7 @@ export const authRouter = router({
         catch (error) {
             throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: (error === null || error === void 0 ? void 0 : error.message) || "Failed to list sessions",
+                message: error instanceof Error ? error.message : "Failed to list sessions",
             });
         }
     })),

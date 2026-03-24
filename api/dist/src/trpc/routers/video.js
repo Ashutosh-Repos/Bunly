@@ -41,7 +41,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { on } from "events";
-import { router, protectedProcedure, videoProcedure, channelProcedure, } from "../router.js";
+import { router, protectedProcedure, publicProcedure, videoProcedure, channelProcedure, } from "../router.js";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 import config from "../../lib/config.js";
@@ -338,7 +338,7 @@ export const videoRouter = router({
             parts = yield listUploadedParts(video.id, video.uploadId);
         }
         catch (error) {
-            if (error.name === "NoSuchUpload") {
+            if (error instanceof Error && error.name === "NoSuchUpload") {
                 console.warn(`[Pipeline] ⚠️ NoSuchUpload during resume for ${video.id}. Deleting stale DB record.`);
                 // Clean up the DB since S3 has discarded the upload session
                 yield prisma.videos
@@ -403,7 +403,7 @@ export const videoRouter = router({
         }
         catch (error) {
             // S3 Error Handling & Recovery
-            if (error.name === "NoSuchUpload") {
+            if (error instanceof Error && error.name === "NoSuchUpload") {
                 console.warn(`[Pipeline] ⚠️ NoSuchUpload for ${video.id}. Checking if duplicate or already completed...`);
                 // 1. Check DB (Fastest) - Already handled above, but double check fresh state
                 const freshVideo = yield prisma.videos.findUnique({
@@ -991,25 +991,28 @@ export const videoRouter = router({
     })),
     // ─── Public Playback Endpoints ───────────────────────────────────
     /**
-     * Get a video for public viewing (Watch Page).
-     * Includes "Hybrid Read" for Watch History.
-     */
-    getPublicVideo: protectedProcedure
+      * Get a video for public viewing (Watch Page).
+      * Works for both authenticated and unauthenticated users.
+      * Watch history and engagement are only available for authenticated users.
+      */
+    getPublicVideo: publicProcedure
         .input(z.object({ videoId: z.string().min(1) }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
-        var _b;
+        var _b, _c, _d, _e;
         const { videoId } = input;
-        const userId = ctx.session.user.id;
+        const userId = (_d = (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : null;
         const video = yield prisma.videos.findUnique({
-            where: { id: videoId },
+            where: { id: videoId, deletedAt: null },
             select: {
                 id: true,
                 title: true,
                 description: true,
                 thumbnailUrl: true,
                 previewSpriteVtt: true,
+                previewSprite: true,
                 duration: true,
                 visibility: true,
+                hlsPlaylistUrl: true,
                 processingStatus: true,
                 viewCount: true,
                 likeCount: true,
@@ -1031,28 +1034,28 @@ export const videoRouter = router({
                 tags: true,
                 category: true,
                 chapters: { orderBy: { startTime: "asc" } },
-                deletedAt: true,
             },
         });
-        if (!video || video.deletedAt !== null) {
+        if (!video) {
             throw new TRPCError({
                 code: "NOT_FOUND",
                 message: "Video not found",
             });
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isOwner = ((_b = video.channels) === null || _b === void 0 ? void 0 : _b.userId) === userId;
+        const isOwner = userId ? ((_e = video.channels) === null || _e === void 0 ? void 0 : _e.userId) === userId : false;
         const isPubliclyAvailable = (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
             video.processingStatus === "READY";
         if (!isPubliclyAvailable && !isOwner) {
             throw new TRPCError({
-                code: "NOT_FOUND", // Mask private/unlisted/processing as not found for non-owners
+                code: "NOT_FOUND",
                 message: "Video not found or is unavailable",
             });
         }
-        // Hybrid Read for Watch History
+        // User-specific data: only fetch when authenticated
         let history = null;
+        let engagement = { liked: false, disliked: false, subscribed: false };
         if (userId) {
+            // Hybrid Read for Watch History
             const dbHistory = yield prisma.watch_history.findUnique({
                 where: {
                     userId_videoId: { userId, videoId },
@@ -1062,19 +1065,8 @@ export const videoRouter = router({
                     lastWatchedAt: true,
                 },
             });
-            // Merge with Redis Session
-            const merged = yield StreamService.getMergedHistory(userId, videoId, dbHistory);
-            history = merged;
-        }
-        // Check if user liked/disliked/subscribed
-        let engagement = {
-            liked: false,
-            disliked: false,
-            subscribed: false,
-        };
-        if (userId) {
-            // Parallel fetch: Cache (Fast) + DB (Reliable/Slow) + Subscription
-            // We fetch DB reaction as fallback or source of truth if cache empty
+            history = yield StreamService.getMergedHistory(userId, videoId, dbHistory);
+            // Check if user liked/disliked/subscribed
             const [cachedReaction, dbReaction, sub] = yield Promise.all([
                 StreamService.getUserReaction(userId, videoId),
                 prisma.video_reactions.findUnique({
@@ -1089,14 +1081,15 @@ export const videoRouter = router({
                     },
                 }),
             ]);
-            // Hybrid Logic: Cache takes precedence if present
             const rawReaction = cachedReaction || (dbReaction === null || dbReaction === void 0 ? void 0 : dbReaction.type);
             const reactionType = rawReaction === "REMOVE" ? null : rawReaction;
-            engagement.liked = reactionType === "LIKE";
-            engagement.disliked = reactionType === "DISLIKE";
-            engagement.subscribed = !!sub;
+            engagement = {
+                liked: reactionType === "LIKE",
+                disliked: reactionType === "DISLIKE",
+                subscribed: !!sub,
+            };
         }
-        return Object.assign(Object.assign({}, video), { history, // { watchedSeconds: 120, timestamp: ... }
+        return Object.assign(Object.assign({}, video), { history,
             engagement });
     })),
     /**
@@ -1174,7 +1167,7 @@ export const videoRouter = router({
         targetPlaylistId: z.string().optional(),
         targetChannelId: z.string().optional(),
         targetUrl: z.string().url().max(500).optional(),
-        pollOptions: z.any().optional(),
+        pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
     }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
         const { videoId } = input, data = __rest(input, ["videoId"]);
@@ -1193,7 +1186,7 @@ export const videoRouter = router({
         targetPlaylistId: z.string().optional(),
         targetChannelId: z.string().optional(),
         targetUrl: z.string().url().max(500).optional(),
-        pollOptions: z.any().optional(),
+        pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
     }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
         const { videoId, cardId } = input, data = __rest(input, ["videoId", "cardId"]);

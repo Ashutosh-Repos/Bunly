@@ -7,10 +7,11 @@ import { IconPlayerPlayFilled, IconVolume, IconVolume3 } from "@tabler/icons-rea
 
 interface ShortsPlayerProps {
     videoId: string;
+    hlsPlaylistUrl?: string | null;
     isActive: boolean; // Tells the player if it's currently snapped in the viewport
 }
 
-export function ShortsPlayer({ videoId, isActive }: ShortsPlayerProps) {
+export function ShortsPlayer({ videoId, hlsPlaylistUrl, isActive }: ShortsPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     
@@ -18,14 +19,13 @@ export function ShortsPlayer({ videoId, isActive }: ShortsPlayerProps) {
     const [isMuted, setIsMuted] = useState(false);
     const [progress, setProgress] = useState(0);
 
-    // HLS logic
+    // HLS logic — FIX: hlsPlaylistUrl added to deps
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        const src = getMediaUrl(`${videoId}/master.m3u8`);
+        const src = hlsPlaylistUrl ? getMediaUrl(hlsPlaylistUrl) : getMediaUrl(`processed/${videoId}/master.m3u8`);
 
-        // Only initialize HLS if the video is active OR we want to preemptively load it
         if (Hls.isSupported()) {
             const hls = new Hls({
                 maxBufferLength: 10,
@@ -48,16 +48,16 @@ export function ShortsPlayer({ videoId, isActive }: ShortsPlayerProps) {
                 hlsRef.current = null;
             }
         };
-    }, [videoId]);
+    }, [videoId, hlsPlaylistUrl]);
 
-    // Playback control
+    // Playback control — FIX: Seek BEFORE play to prevent race condition
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
         if (isActive) {
-            video.play().catch(() => {});
-            video.currentTime = 0; // Rewind on focus
+            video.currentTime = 0; // Rewind first
+            video.play().catch(() => {}); // Then play (safe catch for autoplay policy)
         } else {
             video.pause();
         }
@@ -69,7 +69,7 @@ export function ShortsPlayer({ videoId, isActive }: ShortsPlayerProps) {
             onClick={() => {
                 if (videoRef.current) {
                     if (isPlaying) { videoRef.current.pause(); setIsPlaying(false); }
-                    else { videoRef.current.play(); setIsPlaying(true); }
+                    else { videoRef.current.play().catch(() => {}); setIsPlaying(true); }
                 }
             }}
         >

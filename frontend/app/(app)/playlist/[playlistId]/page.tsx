@@ -31,10 +31,5 @@ export default function PlaylistPage({ params }: { params: Promise<{ playlistId:
         );
     }
 
-    return (
-        data ? (
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            <PlaylistClient playlist={data as any} />
-        ) : null
-    );
+    return <PlaylistClient playlist={data} />;
 }

@@ -71,10 +71,12 @@ export const playlistRouter = router({
     updatePlaylist: playlistProcedure
         .input(
             playlistSchema
+                .omit({ visibility: true })
                 .extend({
                     playlistId: z.string({
                         message: "Playlist ID is required",
                     }),
+                    visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]).optional(),
                 })
                 .partial()
                 .required({ playlistId: true }),
@@ -111,7 +113,9 @@ export const playlistRouter = router({
             const updatedPlaylist = await prisma.playlists.update({
                 where: { id: playlist.id },
                 data: {
-                    ...data,
+                    title: data.title,
+                    description: data.description,
+                    visibility: data.visibility
                 },
             });
 
@@ -146,7 +150,7 @@ export const playlistRouter = router({
             return { success: true, playlist: ctx.playlist };
         }),
 
-    getPublicPlaylist: protectedProcedure
+    getPublicPlaylist: publicProcedure
         .input(
             z.object({
                 playlistId: z.string({ message: "Playlist ID is required" }),
@@ -154,6 +158,7 @@ export const playlistRouter = router({
         )
         .query(async ({ ctx, input }) => {
             const { playlistId } = input;
+            const userId = ctx.session?.user?.id ?? null;
 
             const playlist = await prisma.playlists.findUnique({
                 where: { id: playlistId },
@@ -189,7 +194,7 @@ export const playlistRouter = router({
             // Access Rules:
             // 1. Owner can always view
             // 2. Public/Unlisted can be viewed by anyone
-            const isOwner = playlist.userId === ctx.session.user.id;
+            const isOwner = userId ? playlist.userId === userId : false;
             const isPublicOrUnlisted =
                 playlist.visibility === "PUBLIC" ||
                 playlist.visibility === "UNLISTED";
@@ -201,8 +206,6 @@ export const playlistRouter = router({
                 });
             }
 
-            // For public view, we might want to return a slightly different shape
-            // or just the playlist as is.
             return { success: true, playlist };
         }),
 
@@ -579,7 +582,7 @@ export const playlistRouter = router({
     /**
      * List all public playlists for a channel (Public Profile Playlists tab).
      */
-    getPublicChannelPlaylists: protectedProcedure
+    getPublicChannelPlaylists: publicProcedure
         .input(
             z.object({
                 channelId: z.string(),

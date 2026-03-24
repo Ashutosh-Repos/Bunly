@@ -205,6 +205,30 @@ export const channelRouter = router({
         return { success: true };
     }),
 
+    /**
+     * Get the current user's subscription status for a channel.
+     * Used by SubscribeButton to hydrate initial state.
+     */
+    getSubscriptionStatus: protectedProcedure
+        .input(z.object({ channelId: z.string().min(1) }))
+        .query(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+            const { channelId } = input;
+
+            // Hybrid Read: Cache → DB
+            const cachedStatus = await StreamService.getSubscriptionStatus(userId, channelId);
+            if (cachedStatus !== null) {
+                return { subscribed: cachedStatus === "SUBSCRIBE" };
+            }
+
+            const existing = await prisma.subscriptions.findUnique({
+                where: { subscriberId_channelId: { subscriberId: userId, channelId } },
+                select: { id: true },
+            });
+
+            return { subscribed: !!existing };
+        }),
+
     toggleSubscription: protectedProcedure
         .input(
             z.object({
@@ -291,17 +315,25 @@ export const channelRouter = router({
                 "PERSONALIZED";
 
             if (ctx.session.user.id) {
-                const sub = await prisma.subscriptions.findUnique({
-                    where: {
-                        subscriberId_channelId: {
-                            subscriberId: ctx.session.user.id,
-                            channelId: channel.id,
+                // Hybrid Read: Check Redis cache first (write-behind), then DB
+                const [cachedSub, sub] = await Promise.all([
+                    StreamService.getSubscriptionStatus(ctx.session.user.id, channel.id),
+                    prisma.subscriptions.findUnique({
+                        where: {
+                            subscriberId_channelId: {
+                                subscriberId: ctx.session.user.id,
+                                channelId: channel.id,
+                            },
                         },
-                    },
-                    select: { notificationLevel: true },
-                });
+                        select: { notificationLevel: true },
+                    }),
+                ]);
+
+                isSubscribed = cachedSub !== null
+                    ? cachedSub === "SUBSCRIBE"
+                    : !!sub;
+
                 if (sub) {
-                    isSubscribed = true;
                     notificationLevel = sub.notificationLevel;
                 }
             }

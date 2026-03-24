@@ -10,17 +10,26 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import Image from "next/image";
 import { getMediaUrl } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
+import { cn } from "@/lib/utils";
+
+const SEARCH_FILTERS = [
+    { id: "ALL" as const, label: "All" },
+    { id: "VIDEOS" as const, label: "Videos" },
+    { id: "CHANNELS" as const, label: "Channels" },
+    { id: "PLAYLISTS" as const, label: "Playlists" },
+];
 
 export function SearchClient() {
     const searchParams = useSearchParams();
     const rawQuery = searchParams.get("q") || "";
     // Remove characters that might break Postgres tsquery parsing before we send it to trpc
     const query = rawQuery.replace(/[&|!():*<>\\]/g, " ").replace(/\s+/g, " ").trim();
+    const [filter, setFilter] = useState<"ALL" | "VIDEOS" | "CHANNELS" | "PLAYLISTS">("ALL");
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = trpc.search.globalSearch.useInfiniteQuery(
-        { query },
+        { query, filter },
         {
             getNextPageParam: (l) => l.nextCursor,
             enabled: query.length > 0,
@@ -80,6 +89,26 @@ export function SearchClient() {
                 <h1 className="text-xl font-bold tracking-tight text-muted-foreground">
                     Search results for <span className="text-foreground">&quot;{rawQuery}&quot;</span>
                 </h1>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex gap-2 flex-wrap">
+                {SEARCH_FILTERS.map((f) => (
+                    <Button
+                        key={f.id}
+                        variant={filter === f.id ? "default" : "secondary"}
+                        size="sm"
+                        className={cn(
+                            "rounded-lg font-semibold px-4 transition-all tracking-tight",
+                            filter === f.id
+                                ? "shadow-sm"
+                                : "hover:bg-muted text-muted-foreground",
+                        )}
+                        onClick={() => setFilter(f.id)}
+                    >
+                        {f.label}
+                    </Button>
+                ))}
             </div>
 
             {/* Channels Section (Highest Priority Match) */}

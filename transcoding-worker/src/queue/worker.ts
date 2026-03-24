@@ -94,16 +94,12 @@ export const setupWorker = () => {
                         error: err.message || "Processing failed",
                     });
 
+                    // SAFETY: Only delete processed/ outputs on failure.
+                    // DO NOT delete raw-videos/ here — the user may want to retry processing.
+                    // Raw source cleanup is handled by S3 lifecycle policies.
                     await deleteS3Prefix(`processed/${videoId}/`).catch((e) =>
                         console.warn(
                             `⚠️ S3 cleanup failed for processed/${videoId}:`,
-                            e,
-                        ),
-                    );
-
-                    await deleteS3Prefix(`raw-videos/${videoId}/`).catch((e) =>
-                        console.warn(
-                            `⚠️ S3 raw cleanup failed for raw-videos/${videoId}:`,
                             e,
                         ),
                     );

@@ -43,7 +43,7 @@ export function HomeClient() {
         if (inView && query.hasNextPage && !query.isFetchingNextPage) {
             query.fetchNextPage();
         }
-    }, [inView, query]);
+    }, [inView, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
 
     const videos = query.data?.pages.flatMap((p) => p.videos) || [];
 
@@ -75,7 +75,7 @@ export function HomeClient() {
                 ) : query.isError ? (
                     <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
                         <p className="text-destructive font-bold text-lg tracking-tight">Failed to load feed</p>
-                        <Button variant="outline" className="mt-4 rounded-full" onClick={() => query.fetchNextPage()}>Retry</Button>
+                        <Button variant="outline" className="mt-4 rounded-full" onClick={() => query.refetch()}>Retry</Button>
                     </div>
                 ) : videos.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border-2 border-dashed border-border/60 bg-muted/10 min-h-[50vh] mt-4">

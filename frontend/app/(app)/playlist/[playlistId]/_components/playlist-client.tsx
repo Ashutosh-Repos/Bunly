@@ -2,40 +2,14 @@
 
 import { getMediaUrl, formatDuration } from "@/lib/utils";
 import Link from "next/link";
-import { IconPlayerPlayFilled, IconVideo, IconLock, IconWorld, IconEyeOff, IconPlaylist } from "@tabler/icons-react";
+import { IconPlayerPlayFilled, IconVideo, IconPlaylist } from "@tabler/icons-react";
 import Image from "next/image";
-import { formatDistanceToNow } from "date-fns";
+import type { RouterOutputs } from "@/lib/trpc-client";
 
-interface Video {
-    id: string;
-    title: string;
-    thumbnailUrl: string | null;
-    duration: number | null;
-    viewCount: number;
-    publishedAt: string | Date | null;
-    createdAt: string | Date;
-    channels?: {
-        name: string;
-    } | null;
-}
-
-interface Playlist {
-    id: string;
-    name: string;
-    title?: string;
-    description: string | null;
-    isPublic: boolean;
-    visibility: "PUBLIC" | "PRIVATE" | "UNLISTED";
-    updatedAt: string | Date;
-    user?: {
-        name: string | null;
-    } | null;
-    _count: { playlist_videos: number };
-    playlist_videos: { videos: Video }[];
-}
+type Playlist = RouterOutputs["playlist"]["getPlaylistFlow"];
 
 export function PlaylistClient({ playlist }: { playlist: Playlist }) {
-    const videos = playlist.playlist_videos.map((pv) => pv.videos);
+    const videos = playlist.videos;
     const firstVideo = videos[0];
 
     return (
@@ -63,25 +37,13 @@ export function PlaylistClient({ playlist }: { playlist: Playlist }) {
                     </div>
 
                     <h1 className="text-2xl font-bold line-clamp-2 leading-tight mb-4">
-                        {playlist.title || playlist.name}
+                        {playlist.title}
                     </h1>
 
                     <div className="flex flex-col gap-2 text-sm text-foreground/80 mb-6 font-medium">
-                        <span className="font-semibold text-foreground">{playlist.user?.name || "User"}</span>
-                        <span>{videos.length} videos • Updated {formatDistanceToNow(new Date(playlist.updatedAt), { addSuffix: true })}</span>
-                        
-                        <div className="flex items-center gap-1.5 mt-1 text-xs px-2.5 py-1 bg-muted/60 w-fit rounded-full text-foreground/70 font-semibold border border-border/40">
-                            {playlist.visibility === "PRIVATE" && <><IconLock size={14} /> Private</>}
-                            {playlist.visibility === "UNLISTED" && <><IconEyeOff size={14} /> Unlisted</>}
-                            {playlist.visibility === "PUBLIC" && <><IconWorld size={14} /> Public</>}
-                        </div>
+                        <span className="font-semibold text-foreground">{playlist.authorName || "User"}</span>
+                        <span>{videos.length} videos</span>
                     </div>
-
-                    {playlist.description && (
-                        <p className="text-sm text-muted-foreground mb-6 line-clamp-3 leading-relaxed">
-                            {playlist.description}
-                        </p>
-                    )}
 
                     <div className="flex gap-3 mt-auto">
                         <Link href={firstVideo ? `/watch/${firstVideo.id}?list=${playlist.id}` : "#"} className="flex-1">
@@ -143,7 +105,7 @@ export function PlaylistClient({ playlist }: { playlist: Playlist }) {
                                         {video.title}
                                     </h3>
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                                        <span>{video.channels?.name}</span>
+                                        <span>{video.channelName}</span>
                                     </div>
                                 </div>
                             </div>

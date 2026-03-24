@@ -117,14 +117,17 @@ export const notificationRouter = router({
         return { success: result.count > 0 };
     })),
     onNotification: protectedProcedure.subscription(function (_a) {
-        return __asyncGenerator(this, arguments, function* ({ ctx }) {
+        return __asyncGenerator(this, arguments, function* ({ ctx, signal }) {
             var _b, e_1, _c, _d;
             const userId = ctx.session.user.id;
             const channel = NotificationService.getChannel(userId);
             console.log(`[TRPC] 🎧 Client subscribing to ${channel}`);
+            const ac = new AbortController();
+            // Wire TRPC's cancellation signal to our AbortController
+            signal === null || signal === void 0 ? void 0 : signal.addEventListener("abort", () => ac.abort());
             try {
                 try {
-                    for (var _e = true, _f = __asyncValues(on(redisSubscriptionManager, channel)), _g; _g = yield __await(_f.next()), _b = _g.done, !_b; _e = true) {
+                    for (var _e = true, _f = __asyncValues(on(redisSubscriptionManager, channel, { signal: ac.signal })), _g; _g = yield __await(_f.next()), _b = _g.done, !_b; _e = true) {
                         _d = _g.value;
                         _e = false;
                         const [message] = _d;
@@ -140,6 +143,9 @@ export const notificationRouter = router({
                 }
             }
             catch (err) {
+                // AbortError is expected on disconnect, don't log it
+                if (err instanceof Error && err.name === "AbortError")
+                    return yield __await(void 0);
                 console.error(`[TRPC] Subscription error on ${channel}`, err);
             }
         });

@@ -18,7 +18,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-import { router, protectedProcedure, playlistProcedure, channelProcedure, } from "../router.js";
+import { router, protectedProcedure, playlistProcedure, channelProcedure, publicProcedure, } from "../router.js";
 import { prisma } from "../../lib/prisma";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -76,10 +76,12 @@ export const playlistRouter = router({
     })),
     updatePlaylist: playlistProcedure
         .input(playlistSchema
+        .omit({ visibility: true })
         .extend({
         playlistId: z.string({
             message: "Playlist ID is required",
         }),
+        visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]).optional(),
     })
         .partial()
         .required({ playlistId: true }))
@@ -106,7 +108,11 @@ export const playlistRouter = router({
         }
         const updatedPlaylist = yield prisma.playlists.update({
             where: { id: playlist.id },
-            data: Object.assign({}, data),
+            data: {
+                title: data.title,
+                description: data.description,
+                visibility: data.visibility
+            },
         });
         return { success: true, playlist: updatedPlaylist };
     })),
@@ -131,12 +137,14 @@ export const playlistRouter = router({
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx }) {
         return { success: true, playlist: ctx.playlist };
     })),
-    getPublicPlaylist: protectedProcedure
+    getPublicPlaylist: publicProcedure
         .input(z.object({
         playlistId: z.string({ message: "Playlist ID is required" }),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        var _b, _c, _d;
         const { playlistId } = input;
+        const userId = (_d = (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : null;
         const playlist = yield prisma.playlists.findUnique({
             where: { id: playlistId },
             include: {
@@ -169,7 +177,7 @@ export const playlistRouter = router({
         // Access Rules:
         // 1. Owner can always view
         // 2. Public/Unlisted can be viewed by anyone
-        const isOwner = playlist.userId === ctx.session.user.id;
+        const isOwner = userId ? playlist.userId === userId : false;
         const isPublicOrUnlisted = playlist.visibility === "PUBLIC" ||
             playlist.visibility === "UNLISTED";
         if (!isOwner && !isPublicOrUnlisted) {
@@ -178,8 +186,6 @@ export const playlistRouter = router({
                 message: "This playlist is private",
             });
         }
-        // For public view, we might want to return a slightly different shape
-        // or just the playlist as is.
         return { success: true, playlist };
     })),
     addVideoToPlaylist: playlistProcedure
@@ -487,7 +493,7 @@ export const playlistRouter = router({
     /**
      * List all public playlists for a channel (Public Profile Playlists tab).
      */
-    getPublicChannelPlaylists: protectedProcedure
+    getPublicChannelPlaylists: publicProcedure
         .input(z.object({
         channelId: z.string(),
     }))

@@ -173,7 +173,7 @@ export function CommentItem({ comment, videoId, depth = 0, isVideoOwner = false 
                 {showReplies && allReplies.length > 0 && (
                     <div className="mt-2">
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        {comment.replies.map((reply: any) => (
+                        {allReplies.map((reply: any) => (
                             <CommentItem key={reply.id} comment={reply} videoId={videoId} depth={depth + 1} isVideoOwner={isVideoOwner} />
                         ))}
                         {hasNextPage && (

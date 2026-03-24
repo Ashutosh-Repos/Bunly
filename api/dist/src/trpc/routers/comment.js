@@ -8,12 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { z } from "zod";
-import { router, protectedProcedure } from "../router.js";
+import { router, protectedProcedure, publicProcedure } from "../router.js";
 import { CommentService } from "../../services/CommentService";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 export const commentRouter = router({
-    list: protectedProcedure
+    list: publicProcedure
         .input(z.object({
         videoId: z.string(),
         sortBy: z.enum(["TOP", "NEWEST"]).optional().default("NEWEST"),
@@ -21,8 +21,9 @@ export const commentRouter = router({
         limit: z.number().min(1).max(50).optional().default(20),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
+        var _b, _c, _d;
         const { videoId, sortBy, cursor, limit } = input;
-        const userId = ctx.session.user.id;
+        const userId = (_d = (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : "";
         return CommentService.getComments(videoId, sortBy, cursor, limit, userId);
     })),
     getById: protectedProcedure
@@ -44,9 +45,8 @@ export const commentRouter = router({
         limit: z.number().min(1).max(50).optional().default(10),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
-        var _b;
         const { parentId, cursor, limit } = input;
-        const userId = (_b = ctx.session.user) === null || _b === void 0 ? void 0 : _b.id;
+        const userId = ctx.session.user.id;
         return CommentService.getReplies(parentId, cursor, limit, userId);
     })),
     create: protectedProcedure
@@ -58,6 +58,12 @@ export const commentRouter = router({
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { videoId, content, parentId } = input;
         const comment = yield CommentService.createComment(ctx.session.user.id, videoId, content, parentId);
+        if (videoId && !parentId) {
+            yield prisma.videos.update({
+                where: { id: videoId },
+                data: { commentCount: { increment: 1 } },
+            });
+        }
         return comment;
     })),
     toggleLike: protectedProcedure
@@ -76,7 +82,7 @@ export const commentRouter = router({
             });
         }
         // Check current state (Hybrid Read)
-        let current = yield CommentService.getUserReaction(userId, commentId);
+        const current = yield CommentService.getUserReaction(userId, commentId);
         let action = "LIKE";
         if (current === "LIKE") {
             action = "REMOVE";
@@ -102,7 +108,7 @@ export const commentRouter = router({
                 message: "Comment not found or does not belong to this video",
             });
         }
-        let current = yield CommentService.getUserReaction(userId, commentId);
+        const current = yield CommentService.getUserReaction(userId, commentId);
         let action = "DISLIKE";
         if (current === "DISLIKE") {
             action = "REMOVE";
@@ -134,7 +140,19 @@ export const commentRouter = router({
     delete: protectedProcedure
         .input(z.object({ commentId: z.string() }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
-        return CommentService.deleteComment(input.commentId, ctx.session.user.id);
+        const comment = yield prisma.comments.findUnique({
+            where: { id: input.commentId },
+            select: { videoId: true, parentId: true },
+        });
+        const result = yield CommentService.deleteComment(input.commentId, ctx.session.user.id);
+        // Decrement commentCount (only for top-level comments, matching create logic)
+        if ((comment === null || comment === void 0 ? void 0 : comment.videoId) && !comment.parentId) {
+            yield prisma.videos.update({
+                where: { id: comment.videoId },
+                data: { commentCount: { decrement: 1 } },
+            }).catch((err) => console.error("[Comment] Failed to decrement commentCount", err));
+        }
+        return result;
     })),
     getChannelComments: protectedProcedure
         .input(z.object({

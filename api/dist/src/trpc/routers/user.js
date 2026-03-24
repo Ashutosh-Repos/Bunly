@@ -114,7 +114,7 @@ export const userRouter = router({
             console.error("Failed to delete account:", error);
             throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: (error === null || error === void 0 ? void 0 : error.message) || "Failed to initiate account deletion",
+                message: error instanceof Error ? error.message : "Failed to initiate account deletion",
             });
         }
     })),

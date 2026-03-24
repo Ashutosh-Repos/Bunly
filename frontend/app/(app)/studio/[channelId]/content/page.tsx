@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { useParams } from "next/navigation";
 import { ProcessingStatusIndicator } from "@/components/custom/processing-status";
@@ -24,7 +25,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
 import { useUpload } from "@/components/providers/upload-provider";
 import { useRouter } from "next/navigation";
 import { IconDotsVertical, IconTrash, IconEdit, IconLoader2 } from "@tabler/icons-react";
@@ -39,10 +39,28 @@ export default function StudioContentPage() {
 
     const router = useRouter();
 
-    const { data, isLoading, refetch } = trpc.video.getChannelContent.useInfiniteQuery(
+    const { data, isLoading, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = trpc.video.getChannelContent.useInfiniteQuery(
         { channelId, limit: 20, search: search || undefined },
         { getNextPageParam: (lastPage) => lastPage.nextCursor }
     );
+
+    // Infinite scroll sentinel
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    const handleIntersect = useCallback(
+        (entries: IntersectionObserverEntry[]) => {
+            if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+                fetchNextPage();
+            }
+        },
+        [fetchNextPage, hasNextPage, isFetchingNextPage]
+    );
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(handleIntersect, { rootMargin: "200px" });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [handleIntersect]);
 
     const deleteMutation = trpc.video.deleteVideos.useMutation({
         onSuccess: () => {
@@ -230,6 +248,13 @@ export default function StudioContentPage() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Infinite scroll sentinel */}
+            {hasNextPage && (
+                <div ref={sentinelRef} className="flex justify-center py-4">
+                    {isFetchingNextPage && <IconLoader2 className="animate-spin text-muted-foreground" />}
+                </div>
+            )}
         </div>
     );
 }

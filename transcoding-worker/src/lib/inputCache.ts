@@ -43,9 +43,9 @@ export async function ensureOriginalFile(
             if (timeString) {
                 const lockTime = parseInt(timeString, 10);
                 // If it's a valid timestamp and it's older than 2 minutes (120000ms)
-                if (!isNaN(lockTime) && Date.now() - lockTime > 120000) {
+                if (!isNaN(lockTime) && Date.now() - lockTime > 90000) {
                     console.warn(
-                        `[InputCache] ⚠️ Lock file ${lockFile} timestamp is stale (>2m old). Suspect dead pod, taking over...`,
+                        `[InputCache] ⚠️ Lock file ${lockFile} timestamp is stale (>90s old). Suspect dead pod, taking over...`,
                     );
                     try {
                         fs.unlinkSync(lockFile);

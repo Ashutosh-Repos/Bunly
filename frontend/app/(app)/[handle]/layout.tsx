@@ -28,12 +28,37 @@ export default function ChannelLayout({ children, params }: ChannelLayoutProps) 
     const cleanHandle = decodedHandle.slice(1);
     const pathname = usePathname();
 
+    const utils = trpc.useUtils();
     const { data, isLoading, isError } = trpc.channel.getChannelByHandle.useQuery({ handle: cleanHandle });
     
     const toggleSub = trpc.channel.toggleSubscription.useMutation({
-        onSuccess: () => {
-             trpc.useUtils().channel.getChannelByHandle.invalidate({ handle: cleanHandle });
-        }
+        onMutate: async () => {
+            await utils.channel.getChannelByHandle.cancel({ handle: cleanHandle });
+            const previousData = utils.channel.getChannelByHandle.getData({ handle: cleanHandle });
+            if (previousData?.channel) {
+                const wasSubscribed = previousData.isSubscribed;
+                utils.channel.getChannelByHandle.setData({ handle: cleanHandle }, {
+                    ...previousData,
+                    isSubscribed: !wasSubscribed,
+                    channel: {
+                        ...previousData.channel,
+                        subscriberCount: Math.max(0, previousData.channel.subscriberCount + (wasSubscribed ? -1 : 1)),
+                    },
+                });
+            }
+            return { previousData };
+        },
+        onError: (_err, _input, context) => {
+            if (context?.previousData) {
+                utils.channel.getChannelByHandle.setData({ handle: cleanHandle }, context.previousData);
+            }
+        },
+        onSettled: () => {
+            // Delay: write-behind worker needs time to persist subscription to DB
+            setTimeout(() => {
+                utils.channel.getChannelByHandle.invalidate({ handle: cleanHandle });
+            }, 3000);
+        },
     });
 
     if (isLoading) {

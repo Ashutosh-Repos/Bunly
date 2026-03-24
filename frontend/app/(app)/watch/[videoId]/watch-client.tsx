@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef } from "react";
+import { use, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { VideoPlayer } from "@/components/custom/video-player";
 import { getMediaUrl, formatDuration } from "@/lib/utils";
@@ -43,12 +43,13 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
     // L5: Watch progress heartbeat every 15s
     const updateProgress = trpc.video.updateWatchProgress.useMutation();
     const lastReportedRef = useRef(0);
-    const handleTimeUpdate = (seconds: number) => {
+    const handleTimeUpdate = useCallback((seconds: number) => {
         if (Math.abs(seconds - lastReportedRef.current) >= 15) {
             lastReportedRef.current = seconds;
             updateProgress.mutate({ videoId, seconds: Math.floor(seconds) });
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [videoId]);
 
     // Sidebar: real recommendations (L2)
     const { data: recommendationsData, isLoading: recsLoading } = trpc.feed.getRecommendations.useQuery(
@@ -78,11 +79,13 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
             }
             return { previousData };
         },
-        onError: (err, newTodo, context) => {
+        onError: (_err, _input, context) => {
             if (context?.previousData) utils.video.getPublicVideo.setData({ videoId }, context.previousData);
         },
         onSettled: () => {
-            utils.video.getPublicVideo.invalidate({ videoId });
+            setTimeout(() => {
+                utils.video.getPublicVideo.invalidate({ videoId });
+            }, 3000);
         }
     });
 
@@ -106,11 +109,13 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
             }
             return { previousData };
         },
-        onError: (err, newTodo, context) => {
+        onError: (_err, _input, context) => {
             if (context?.previousData) utils.video.getPublicVideo.setData({ videoId }, context.previousData);
         },
         onSettled: () => {
-            utils.video.getPublicVideo.invalidate({ videoId });
+            setTimeout(() => {
+                utils.video.getPublicVideo.invalidate({ videoId });
+            }, 3000);
         }
     });
 
@@ -135,11 +140,15 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
             }
             return { previousData };
         },
-        onError: (err, newTodo, context) => {
+        onError: (_err, _input, context) => {
             if (context?.previousData) utils.video.getPublicVideo.setData({ videoId }, context.previousData);
         },
         onSettled: () => {
-            utils.video.getPublicVideo.invalidate({ videoId });
+            // Delay invalidation: write-behind worker needs time to persist to DB.
+            // Without this delay, the re-fetch reads stale DB data and reverts the optimistic update.
+            setTimeout(() => {
+                utils.video.getPublicVideo.invalidate({ videoId });
+            }, 3000);
         }
     });
 
@@ -157,7 +166,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
     };
 
     const handleSubscribe = () => {
-        if (!data?.channelId) return;
+        if (!data?.channelId || toggleSubscription.isPending) return;
         toggleSubscription.mutate({ channelId: data.channelId });
     };
 
@@ -200,8 +209,10 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                 <div className="w-full shadow-2xl rounded-2xl overflow-hidden bg-black/5 ring-1 ring-border/5">
                     <VideoPlayer
                         videoId={video.id}
+                        hlsPlaylistUrl={video.hlsPlaylistUrl}
                         thumbnailUrl={video.thumbnailUrl}
                         previewSpriteVtt={video.previewSpriteVtt}
+                        chapters={video.chapters}
                         autoPlay={true}
                         onTimeUpdate={handleTimeUpdate}
                         // Resume from watch history if available
@@ -221,14 +232,18 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
 
                     {/* Channel Info */}
                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <Avatar className="w-10 h-10 border shadow-sm">
-                            <AvatarImage src={channel?.image ? getMediaUrl(channel.image) : undefined} />
-                            <AvatarFallback className="font-bold text-primary bg-primary/10 tracking-widest uppercase text-xs">
-                                {channel?.name?.slice(0, 2) || "U"}
-                            </AvatarFallback>
-                        </Avatar>
+                        <Link href={`/@${channel?.handle}`}>
+                            <Avatar className="w-10 h-10 border shadow-sm">
+                                <AvatarImage src={channel?.image ? getMediaUrl(channel.image) : undefined} />
+                                <AvatarFallback className="font-bold text-primary bg-primary/10 tracking-widest uppercase text-xs">
+                                    {channel?.name?.slice(0, 2) || "U"}
+                                </AvatarFallback>
+                            </Avatar>
+                        </Link>
                         <div className="flex flex-col -gap-1">
-                            <span className="font-semibold text-sm leading-tight">{channel?.name}</span>
+                            <Link href={`/@${channel?.handle}`} className="font-semibold text-sm leading-tight hover:text-primary transition-colors">
+                                {channel?.name}
+                            </Link>
                             <span className="text-xs text-muted-foreground tracking-wide">
                                 {channel?.subscriberCount?.toLocaleString() || 0} subscribers
                             </span>
@@ -238,6 +253,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                             className="rounded-full px-6 ml-2 font-bold tracking-wide active:scale-95 transition-transform"
                             variant={engagement?.subscribed ? "outline" : "default"}
                             onClick={handleSubscribe}
+                            disabled={toggleSubscription.isPending}
                         >
                             {engagement?.subscribed ? "Subscribed" : "Subscribe"}
                         </Button>
@@ -324,8 +340,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                         <span className="text-sm font-medium text-muted-foreground">No related videos found</span>
                     </div>
                 ) : (
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    relatedVideos.map((v: any) => (
+                    relatedVideos.map((v) => (
                         <Link key={v.id} href={`/watch/${v.id}`} className="flex gap-2 group cursor-pointer">
                             <div className="w-[160px] aspect-video bg-muted/40 rounded-lg shrink-0 relative overflow-hidden ring-1 ring-border/10 group-hover:ring-primary/50 transition-all">
                                 {v.thumbnailUrl ? (

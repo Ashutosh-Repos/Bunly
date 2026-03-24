@@ -425,8 +425,8 @@ export const videoRouter = router({
         let parts;
         try {
             parts = await listUploadedParts(video.id, video.uploadId);
-        } catch (error: any) {
-            if (error.name === "NoSuchUpload") {
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === "NoSuchUpload") {
                 console.warn(
                     `[Pipeline] ⚠️ NoSuchUpload during resume for ${video.id}. Deleting stale DB record.`,
                 );
@@ -509,9 +509,9 @@ export const videoRouter = router({
                     uploadId,
                     parts as CompletedPart[],
                 );
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // S3 Error Handling & Recovery
-                if (error.name === "NoSuchUpload") {
+                if (error instanceof Error && error.name === "NoSuchUpload") {
                     console.warn(
                         `[Pipeline] ⚠️ NoSuchUpload for ${video.id}. Checking if duplicate or already completed...`,
                     );
@@ -1313,25 +1313,28 @@ export const videoRouter = router({
     // ─── Public Playback Endpoints ───────────────────────────────────
 
     /**
-     * Get a video for public viewing (Watch Page).
-     * Includes "Hybrid Read" for Watch History.
-     */
-    getPublicVideo: protectedProcedure
+      * Get a video for public viewing (Watch Page).
+      * Works for both authenticated and unauthenticated users.
+      * Watch history and engagement are only available for authenticated users.
+      */
+    getPublicVideo: publicProcedure
         .input(z.object({ videoId: z.string().min(1) }))
         .query(async ({ ctx, input }) => {
             const { videoId } = input;
-            const userId = ctx.session.user.id;
+            const userId = ctx.session?.user?.id ?? null;
 
             const video = await prisma.videos.findUnique({
-                where: { id: videoId },
+                where: { id: videoId, deletedAt: null },
                 select: {
                     id: true,
                     title: true,
                     description: true,
                     thumbnailUrl: true,
                     previewSpriteVtt: true,
+                    previewSprite: true,
                     duration: true,
                     visibility: true,
+                    hlsPlaylistUrl: true,
                     processingStatus: true,
                     viewCount: true,
                     likeCount: true,
@@ -1353,33 +1356,34 @@ export const videoRouter = router({
                     tags: true,
                     category: true,
                     chapters: { orderBy: { startTime: "asc" } },
-                    deletedAt: true,
                 },
             });
 
-            if (!video || video.deletedAt !== null) {
+            if (!video) {
                 throw new TRPCError({
                     code: "NOT_FOUND",
                     message: "Video not found",
                 });
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const isOwner = (video as any).channels?.userId === userId;
+            const isOwner = userId ? video.channels?.userId === userId : false;
             const isPubliclyAvailable = 
                 (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") && 
                 video.processingStatus === "READY";
 
             if (!isPubliclyAvailable && !isOwner) {
                 throw new TRPCError({
-                    code: "NOT_FOUND", // Mask private/unlisted/processing as not found for non-owners
+                    code: "NOT_FOUND",
                     message: "Video not found or is unavailable",
                 });
             }
 
-            // Hybrid Read for Watch History
-            let history = null;
+            // User-specific data: only fetch when authenticated
+            let history: { watchedSeconds: number; timestamp?: number } | null = null;
+            let engagement = { liked: false, disliked: false, subscribed: false };
+
             if (userId) {
+                // Hybrid Read for Watch History
                 const dbHistory = await prisma.watch_history.findUnique({
                     where: {
                         userId_videoId: { userId, videoId },
@@ -1390,25 +1394,14 @@ export const videoRouter = router({
                     },
                 });
 
-                // Merge with Redis Session
-                const merged = await StreamService.getMergedHistory(
+                history = await StreamService.getMergedHistory(
                     userId,
                     videoId,
                     dbHistory,
                 );
-                history = merged;
-            }
 
-            // Check if user liked/disliked/subscribed
-            let engagement = {
-                liked: false,
-                disliked: false,
-                subscribed: false,
-            };
-            if (userId) {
-                // Parallel fetch: Cache (Fast) + DB (Reliable/Slow) + Subscription
-                // We fetch DB reaction as fallback or source of truth if cache empty
-                const [cachedReaction, dbReaction, sub] = await Promise.all([
+                // Check if user liked/disliked/subscribed (Hybrid Read for all)
+                const [cachedReaction, dbReaction, dbSub, cachedSub] = await Promise.all([
                     StreamService.getUserReaction(userId, videoId),
                     prisma.video_reactions.findUnique({
                         where: { videoId_userId: { userId, videoId } },
@@ -1421,21 +1414,28 @@ export const videoRouter = router({
                             },
                         },
                     }),
+                    StreamService.getSubscriptionStatus(userId, video.channelId),
                 ]);
 
-                // Hybrid Logic: Cache takes precedence if present
                 const rawReaction = cachedReaction || dbReaction?.type;
                 const reactionType =
                     rawReaction === "REMOVE" ? null : rawReaction;
 
-                engagement.liked = reactionType === "LIKE";
-                engagement.disliked = reactionType === "DISLIKE";
-                engagement.subscribed = !!sub;
+                // Hybrid: prefer cache (write-behind), fall back to DB
+                const isSubscribed = cachedSub !== null
+                    ? cachedSub === "SUBSCRIBE"
+                    : !!dbSub;
+
+                engagement = {
+                    liked: reactionType === "LIKE",
+                    disliked: reactionType === "DISLIKE",
+                    subscribed: isSubscribed,
+                };
             }
 
             return {
                 ...video,
-                history, // { watchedSeconds: 120, timestamp: ... }
+                history,
                 engagement,
             };
         }),
@@ -1533,7 +1533,7 @@ export const videoRouter = router({
                 targetPlaylistId: z.string().optional(),
                 targetChannelId: z.string().optional(),
                 targetUrl: z.string().url().max(500).optional(),
-                pollOptions: z.any().optional(),
+                pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
             })
         )
         .mutation(async ({ input }) => {
@@ -1558,7 +1558,7 @@ export const videoRouter = router({
                 targetPlaylistId: z.string().optional(),
                 targetChannelId: z.string().optional(),
                 targetUrl: z.string().url().max(500).optional(),
-                pollOptions: z.any().optional(),
+                pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
             })
         )
         .mutation(async ({ input }) => {

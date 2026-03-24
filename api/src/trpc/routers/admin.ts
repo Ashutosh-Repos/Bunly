@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, auditedAdminProcedure } from "../router.js";
 import { prisma } from "../../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
-import { AdminContentStatus } from "../../../generated/prisma/client/index.js";
+import { AdminContentStatus, ChannelStatus } from "../../../generated/prisma/client/index.js";
 
 export const adminRouter = router({
     getStats: auditedAdminProcedure.query(async () => {
@@ -160,7 +160,7 @@ export const adminRouter = router({
         .mutation(async ({ ctx, input }) => {
             const updated = await prisma.channels.update({
                 where: { id: input.channelId },
-                data: { status: input.status as any }, // Assuming ChannelStatus enum maps well
+                data: { status: input.status as ChannelStatus },
             });
 
             // If suspending

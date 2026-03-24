@@ -184,6 +184,26 @@ export const channelRouter = router({
         // A background job should later clean up associated S3 objects.
         return { success: true };
     })),
+    /**
+     * Get the current user's subscription status for a channel.
+     * Used by SubscribeButton to hydrate initial state.
+     */
+    getSubscriptionStatus: protectedProcedure
+        .input(z.object({ channelId: z.string().min(1) }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const userId = ctx.session.user.id;
+        const { channelId } = input;
+        // Hybrid Read: Cache → DB
+        const cachedStatus = yield StreamService.getSubscriptionStatus(userId, channelId);
+        if (cachedStatus !== null) {
+            return { subscribed: cachedStatus === "SUBSCRIBE" };
+        }
+        const existing = yield prisma.subscriptions.findUnique({
+            where: { subscriberId_channelId: { subscriberId: userId, channelId } },
+            select: { id: true },
+        });
+        return { subscribed: !!existing };
+    })),
     toggleSubscription: protectedProcedure
         .input(z.object({
         channelId: z.string({ message: "Channel ID is required" }),

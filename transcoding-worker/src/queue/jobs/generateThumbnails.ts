@@ -20,12 +20,11 @@ export async function handleThumbnails(job: Job) {
     const filenames = await generateThumbnails(localInput, localDir, duration);
 
     await job.updateProgress({ percent: 50, videoId });
-    const thumbnailKeys: string[] = [];
-    await Promise.all(
+    const thumbnailKeys = await Promise.all(
         filenames.map(async (file) => {
             const key = `processed/${videoId}/thumbnails/${file}`;
             await uploadFile(key, path.join(localDir, file), "image/jpeg");
-            thumbnailKeys.push(key);
+            return key;
         }),
     );
 

@@ -59,6 +59,19 @@ function verifyEngagementAccess(videoId, userId) {
 }
 export const engagementRouter = router({
     /**
+     * Get the current user's reaction (LIKE/DISLIKE/null) for a video.
+     * Used by ShortsClient to hydrate initial engagement state.
+     */
+    getReaction: protectedProcedure
+        .input(z.object({ videoId: z.string().min(1) }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const userId = ctx.session.user.id;
+        const { videoId } = input;
+        const reaction = yield getReaction(userId, videoId);
+        const type = reaction === "REMOVE" ? null : reaction;
+        return { type };
+    })),
+    /**
      * Toggle Like on a video.
      * If already liked, removes like.
      * If disliked, changes to like.

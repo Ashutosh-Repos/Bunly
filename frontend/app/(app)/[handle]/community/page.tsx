@@ -4,6 +4,7 @@ import { use } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { IconMessageCircle, IconThumbUp, IconChartBar } from "@tabler/icons-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { RouterOutputs } from "@/lib/trpc-client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -16,9 +17,10 @@ export default function ChannelCommunityPage({ params }: { params: Promise<{ han
     const { handle } = use(params);
     const cleanHandle = decodeURIComponent(handle).slice(1);
 
-    const { data: channelData } = trpc.channel.getChannelByHandle.useQuery({ handle: cleanHandle });
+    const channelData = trpc.channel.getChannelByHandle.useQuery({ handle: cleanHandle }).data;
     const channel = channelData?.channel;
     const channelId = channel?.id;
+    const utils = trpc.useUtils();
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = trpc.community.getChannelPosts.useInfiniteQuery(
         { channelId: channelId! },
@@ -65,6 +67,7 @@ export default function ChannelCommunityPage({ params }: { params: Promise<{ han
                                 // Optimistic UI could be handled here in the real world
                                 // For now we just let react-query refetch or rely on toast
                                 toast.success(res.status === "LIKED" ? "Liked post" : "Removed like");
+                                utils.community.getChannelPosts.invalidate({ channelId });
                             }
                         });
                     }} 
@@ -80,10 +83,12 @@ export default function ChannelCommunityPage({ params }: { params: Promise<{ han
     );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CommunityPostCard({ post, channel, onLike }: { post: any, channel: any, onLike: () => void }) {
+type Post = RouterOutputs["community"]["getChannelPosts"]["items"][0];
+type ChannelInfo = NonNullable<RouterOutputs["channel"]["getChannelByHandle"]>["channel"];
+
+function CommunityPostCard({ post, channel, onLike }: { post: Post, channel: ChannelInfo, onLike: () => void }) {
     // Basic local state for optimistic like toggle
-    const [liked, setLiked] = useState(false);
+    const [liked, setLiked] = useState(post.isLiked ?? false);
     const [likesCount, setLikesCount] = useState(post.likeCount);
 
     const handleLikeClick = () => {
@@ -117,11 +122,11 @@ function CommunityPostCard({ post, channel, onLike }: { post: any, channel: any,
                     </p>
 
                     {/* IMAGE POST */}
-                    {post.type === "IMAGE" && post.attachments && Array.isArray(post.attachments) && post.attachments.length > 0 && (
+                    {post.type === "IMAGE" && post.imageUrls && Array.isArray(post.imageUrls) && post.imageUrls.length > 0 && (
                         <div className="mt-4 rounded-xl overflow-hidden border border-border/50 max-h-[500px] flex items-center justify-center bg-muted/30">
-                            {/* Assuming attachments[0] is an image url */}
+                            {/* Assuming imageUrls[0] is an image url */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={getMediaUrl(post.attachments[0])} alt="Post attachment" className="object-contain max-h-[500px] w-full" />
+                            <img src={getMediaUrl(post.imageUrls[0])} alt="Post attachment" className="object-contain max-h-[500px] w-full" />
                         </div>
                     )}
 
@@ -131,7 +136,8 @@ function CommunityPostCard({ post, channel, onLike }: { post: any, channel: any,
                             <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-muted-foreground">
                                 <IconChartBar size={16} /> Poll
                             </div>
-                            {post.pollOptions.map((opt: string, idx: number) => {
+                            {post.pollOptions.map((optValue, idx: number) => {
+                                const opt = String(optValue);
                                 // Simplified poll UI for viewing
                                 const resultCount = post.pollResults ? parseInt((post.pollResults as Record<string, string>)[idx.toString()] || "0") : 0;
                                 return (
@@ -151,10 +157,6 @@ function CommunityPostCard({ post, channel, onLike }: { post: any, channel: any,
                         <Button variant="ghost" size="sm" className={`rounded-full px-3 h-9 ${liked ? "text-primary" : ""}`} onClick={handleLikeClick}>
                             <IconThumbUp size={18} className={`mr-1.5 ${liked ? "fill-primary" : ""}`} />
                             <span className="text-xs font-bold">{likesCount > 0 ? likesCount : ""}</span>
-                        </Button>
-                        <Button variant="ghost" size="sm" className="rounded-full px-3 h-9">
-                            <IconMessageCircle size={18} className="mr-1.5" />
-                            <span className="text-xs font-bold">Reply</span>
                         </Button>
                     </div>
                 </div>

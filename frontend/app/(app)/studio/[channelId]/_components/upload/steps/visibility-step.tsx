@@ -27,7 +27,7 @@ export function VisibilityStep() {
                             <FormControl>
                                 <RadioGroup
                                     onValueChange={field.onChange}
-                                    defaultValue={field.value}
+                                    value={field.value}
                                     className="flex flex-col space-y-2 ml-4"
                                 >
                                     <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
