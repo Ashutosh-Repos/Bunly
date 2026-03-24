@@ -11,9 +11,30 @@ import Link from "next/link";
 import { getMediaUrl } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
+import { createContext, useContext } from "react";
+import { type RouterOutputs } from "@/lib/trpc-client";
+
 interface ChannelLayoutProps {
     children: React.ReactNode;
     params: Promise<{ handle: string }>;
+}
+
+type Channel = RouterOutputs["channel"]["getChannelByHandle"]["channel"];
+
+interface ChannelContextType {
+    channel: Channel;
+    isSubscribed: boolean;
+    isOwner: boolean;
+}
+
+export const ChannelContext = createContext<ChannelContextType | null>(null);
+
+export function useChannelContext() {
+    const context = useContext(ChannelContext);
+    if (!context) {
+        throw new Error("useChannelContext must be used within a ChannelLayout");
+    }
+    return context;
 }
 
 export default function ChannelLayout({ children, params }: ChannelLayoutProps) {

@@ -70,7 +70,7 @@ export default function NotificationsPage() {
     // [REAL-TIME FIX] Safely inject incoming pushes dynamically without unmounting or reloading React
     trpc.notification.onNotification.useSubscription(undefined, {
         enabled: !!user,
-        onData(notification: any) {
+        onData(notification: RouterOutputs["notification"]["list"]["items"][number]) {
             try {
                 const updater = (old: InfiniteNotificationData | undefined) => {
                     if (!old) return old;

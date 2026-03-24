@@ -515,13 +515,12 @@ export const playlistRouter = router({
                         },
                         playlist_videos: {
                             orderBy: { position: "asc" },
-                            where: { videoId }, // Only fetch the target video for containment
                             select: {
                                 videoId: true,
                                 position: true,
                                 videos: { select: { thumbnailUrl: true } },
                             },
-                            take: 1, // Only need to know if it exists
+                            take: 100, // Fetch top 100 items to derive containment + cover thumbnail accurately
                         },
                     },
                 });
@@ -649,8 +648,12 @@ export const playlistRouter = router({
                     orderBy: { updatedAt: "desc" },
                     include: {
                         playlist_videos: {
-                            where: { videoId },
-                            select: { videoId: true },
+                            orderBy: { position: "asc" },
+                            select: { 
+                                videoId: true,
+                                videos: { select: { thumbnailUrl: true } },
+                            },
+                            take: 100, // Reasonable cap for looking up containment + cover
                         },
                     },
                 });
@@ -662,6 +665,7 @@ export const playlistRouter = router({
                         return {
                             ...rest,
                             containsVideo: playlist_videos.length > 0,
+                            firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
                         };
                     }),
                 };
@@ -670,14 +674,25 @@ export const playlistRouter = router({
             const playlists = await prisma.playlists.findMany({
                 where: { userId, deletedAt: null },
                 orderBy: { updatedAt: "desc" },
+                include: {
+                    playlist_videos: {
+                        take: 1,
+                        orderBy: { position: "asc" },
+                        select: { videos: { select: { thumbnailUrl: true } } },
+                    },
+                },
             });
 
             return {
                 success: true,
-                playlists: playlists.map((p) => ({
-                    ...p,
-                    containsVideo: false,
-                })),
+                playlists: playlists.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        containsVideo: false,
+                        firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
+                    };
+                }),
             };
         }),
 
@@ -730,6 +745,8 @@ export const playlistRouter = router({
             return {
                 id: playlist.id,
                 title: playlist.title,
+                description: playlist.description,
+                visibility: playlist.visibility,
                 authorName: playlist.channels?.name || playlist.user.name,
                 authorHandle: playlist.channels?.handle || null,
                 videos: playlist.playlist_videos
@@ -746,5 +763,29 @@ export const playlistRouter = router({
                         position: pv.position,
                     })),
             };
+        }),
+
+    updatePlaylistDetails: protectedProcedure
+        .input(z.object({
+            playlistId: z.string(),
+            title: z.string().min(1).max(150),
+            visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"])
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const playlist = await prisma.playlists.findUnique({
+                where: { id: input.playlistId }
+            });
+
+            if (!playlist || playlist.userId !== ctx.session.user.id) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
+            }
+
+            return prisma.playlists.update({
+                where: { id: input.playlistId },
+                data: {
+                    title: input.title,
+                    visibility: input.visibility
+                }
+            });
         }),
 });

@@ -249,7 +249,6 @@ model playlists {
   title           String              @db.VarChar(150)
   description     String?
   visibility      VideoVisibility     @default(PUBLIC)
-  thumbnailUrl    String?
   isSystem        Boolean             @default(false)
   systemType      PlaylistSystemType?
   videoCount      Int                 @default(0)

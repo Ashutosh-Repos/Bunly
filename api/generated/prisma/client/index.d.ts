@@ -17163,7 +17163,6 @@ export namespace Prisma {
     title: string | null
     description: string | null
     visibility: $Enums.VideoVisibility | null
-    thumbnailUrl: string | null
     isSystem: boolean | null
     systemType: $Enums.PlaylistSystemType | null
     videoCount: number | null
@@ -17179,7 +17178,6 @@ export namespace Prisma {
     title: string | null
     description: string | null
     visibility: $Enums.VideoVisibility | null
-    thumbnailUrl: string | null
     isSystem: boolean | null
     systemType: $Enums.PlaylistSystemType | null
     videoCount: number | null
@@ -17195,7 +17193,6 @@ export namespace Prisma {
     title: number
     description: number
     visibility: number
-    thumbnailUrl: number
     isSystem: number
     systemType: number
     videoCount: number
@@ -17221,7 +17218,6 @@ export namespace Prisma {
     title?: true
     description?: true
     visibility?: true
-    thumbnailUrl?: true
     isSystem?: true
     systemType?: true
     videoCount?: true
@@ -17237,7 +17233,6 @@ export namespace Prisma {
     title?: true
     description?: true
     visibility?: true
-    thumbnailUrl?: true
     isSystem?: true
     systemType?: true
     videoCount?: true
@@ -17253,7 +17248,6 @@ export namespace Prisma {
     title?: true
     description?: true
     visibility?: true
-    thumbnailUrl?: true
     isSystem?: true
     systemType?: true
     videoCount?: true
@@ -17356,7 +17350,6 @@ export namespace Prisma {
     title: string
     description: string | null
     visibility: $Enums.VideoVisibility
-    thumbnailUrl: string | null
     isSystem: boolean
     systemType: $Enums.PlaylistSystemType | null
     videoCount: number
@@ -17391,7 +17384,6 @@ export namespace Prisma {
     title?: boolean
     description?: boolean
     visibility?: boolean
-    thumbnailUrl?: boolean
     isSystem?: boolean
     systemType?: boolean
     videoCount?: boolean
@@ -17411,7 +17403,6 @@ export namespace Prisma {
     title?: boolean
     description?: boolean
     visibility?: boolean
-    thumbnailUrl?: boolean
     isSystem?: boolean
     systemType?: boolean
     videoCount?: boolean
@@ -17429,7 +17420,6 @@ export namespace Prisma {
     title?: boolean
     description?: boolean
     visibility?: boolean
-    thumbnailUrl?: boolean
     isSystem?: boolean
     systemType?: boolean
     videoCount?: boolean
@@ -17447,7 +17437,6 @@ export namespace Prisma {
     title?: boolean
     description?: boolean
     visibility?: boolean
-    thumbnailUrl?: boolean
     isSystem?: boolean
     systemType?: boolean
     videoCount?: boolean
@@ -17456,7 +17445,7 @@ export namespace Prisma {
     deletedAt?: boolean
   }
 
-  export type playlistsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "channelId" | "title" | "description" | "visibility" | "thumbnailUrl" | "isSystem" | "systemType" | "videoCount" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["playlists"]>
+  export type playlistsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "channelId" | "title" | "description" | "visibility" | "isSystem" | "systemType" | "videoCount" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["playlists"]>
   export type playlistsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     playlist_videos?: boolean | playlists$playlist_videosArgs<ExtArgs>
     channels?: boolean | playlists$channelsArgs<ExtArgs>
@@ -17486,7 +17475,6 @@ export namespace Prisma {
       title: string
       description: string | null
       visibility: $Enums.VideoVisibility
-      thumbnailUrl: string | null
       isSystem: boolean
       systemType: $Enums.PlaylistSystemType | null
       videoCount: number
@@ -17925,7 +17913,6 @@ export namespace Prisma {
     readonly title: FieldRef<"playlists", 'String'>
     readonly description: FieldRef<"playlists", 'String'>
     readonly visibility: FieldRef<"playlists", 'VideoVisibility'>
-    readonly thumbnailUrl: FieldRef<"playlists", 'String'>
     readonly isSystem: FieldRef<"playlists", 'Boolean'>
     readonly systemType: FieldRef<"playlists", 'PlaylistSystemType'>
     readonly videoCount: FieldRef<"playlists", 'Int'>
@@ -35163,7 +35150,6 @@ export namespace Prisma {
     title: 'title',
     description: 'description',
     visibility: 'visibility',
-    thumbnailUrl: 'thumbnailUrl',
     isSystem: 'isSystem',
     systemType: 'systemType',
     videoCount: 'videoCount',
@@ -35604,8 +35590,7 @@ export namespace Prisma {
     userId: 'userId',
     channelId: 'channelId',
     title: 'title',
-    description: 'description',
-    thumbnailUrl: 'thumbnailUrl'
+    description: 'description'
   };
 
   export type playlistsOrderByRelevanceFieldEnum = (typeof playlistsOrderByRelevanceFieldEnum)[keyof typeof playlistsOrderByRelevanceFieldEnum]
@@ -37114,7 +37099,6 @@ export namespace Prisma {
     title?: StringFilter<"playlists"> | string
     description?: StringNullableFilter<"playlists"> | string | null
     visibility?: EnumVideoVisibilityFilter<"playlists"> | $Enums.VideoVisibility
-    thumbnailUrl?: StringNullableFilter<"playlists"> | string | null
     isSystem?: BoolFilter<"playlists"> | boolean
     systemType?: EnumPlaylistSystemTypeNullableFilter<"playlists"> | $Enums.PlaylistSystemType | null
     videoCount?: IntFilter<"playlists"> | number
@@ -37133,7 +37117,6 @@ export namespace Prisma {
     title?: SortOrder
     description?: SortOrderInput | SortOrder
     visibility?: SortOrder
-    thumbnailUrl?: SortOrderInput | SortOrder
     isSystem?: SortOrder
     systemType?: SortOrderInput | SortOrder
     videoCount?: SortOrder
@@ -37157,7 +37140,6 @@ export namespace Prisma {
     title?: StringFilter<"playlists"> | string
     description?: StringNullableFilter<"playlists"> | string | null
     visibility?: EnumVideoVisibilityFilter<"playlists"> | $Enums.VideoVisibility
-    thumbnailUrl?: StringNullableFilter<"playlists"> | string | null
     isSystem?: BoolFilter<"playlists"> | boolean
     systemType?: EnumPlaylistSystemTypeNullableFilter<"playlists"> | $Enums.PlaylistSystemType | null
     videoCount?: IntFilter<"playlists"> | number
@@ -37176,7 +37158,6 @@ export namespace Prisma {
     title?: SortOrder
     description?: SortOrderInput | SortOrder
     visibility?: SortOrder
-    thumbnailUrl?: SortOrderInput | SortOrder
     isSystem?: SortOrder
     systemType?: SortOrderInput | SortOrder
     videoCount?: SortOrder
@@ -37200,7 +37181,6 @@ export namespace Prisma {
     title?: StringWithAggregatesFilter<"playlists"> | string
     description?: StringNullableWithAggregatesFilter<"playlists"> | string | null
     visibility?: EnumVideoVisibilityWithAggregatesFilter<"playlists"> | $Enums.VideoVisibility
-    thumbnailUrl?: StringNullableWithAggregatesFilter<"playlists"> | string | null
     isSystem?: BoolWithAggregatesFilter<"playlists"> | boolean
     systemType?: EnumPlaylistSystemTypeNullableWithAggregatesFilter<"playlists"> | $Enums.PlaylistSystemType | null
     videoCount?: IntWithAggregatesFilter<"playlists"> | number
@@ -39781,7 +39761,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -39800,7 +39779,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -39815,7 +39793,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -39834,7 +39811,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -39851,7 +39827,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -39865,7 +39840,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -39881,7 +39855,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -42593,7 +42566,6 @@ export namespace Prisma {
     title?: SortOrder
     description?: SortOrder
     visibility?: SortOrder
-    thumbnailUrl?: SortOrder
     isSystem?: SortOrder
     systemType?: SortOrder
     videoCount?: SortOrder
@@ -42613,7 +42585,6 @@ export namespace Prisma {
     title?: SortOrder
     description?: SortOrder
     visibility?: SortOrder
-    thumbnailUrl?: SortOrder
     isSystem?: SortOrder
     systemType?: SortOrder
     videoCount?: SortOrder
@@ -42629,7 +42600,6 @@ export namespace Prisma {
     title?: SortOrder
     description?: SortOrder
     visibility?: SortOrder
-    thumbnailUrl?: SortOrder
     isSystem?: SortOrder
     systemType?: SortOrder
     videoCount?: SortOrder
@@ -48060,7 +48030,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -48077,7 +48046,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -48571,7 +48539,6 @@ export namespace Prisma {
     title?: StringFilter<"playlists"> | string
     description?: StringNullableFilter<"playlists"> | string | null
     visibility?: EnumVideoVisibilityFilter<"playlists"> | $Enums.VideoVisibility
-    thumbnailUrl?: StringNullableFilter<"playlists"> | string | null
     isSystem?: BoolFilter<"playlists"> | boolean
     systemType?: EnumPlaylistSystemTypeNullableFilter<"playlists"> | $Enums.PlaylistSystemType | null
     videoCount?: IntFilter<"playlists"> | number
@@ -51031,7 +50998,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -51049,7 +51015,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -51214,7 +51179,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -51232,7 +51196,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -54532,7 +54495,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -54549,7 +54511,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -58288,7 +58249,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -58517,7 +58477,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -58534,7 +58493,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -58550,7 +58508,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -59686,7 +59643,6 @@ export namespace Prisma {
     title: string
     description?: string | null
     visibility?: $Enums.VideoVisibility
-    thumbnailUrl?: string | null
     isSystem?: boolean
     systemType?: $Enums.PlaylistSystemType | null
     videoCount?: number
@@ -60244,7 +60200,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -60261,7 +60216,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number
@@ -60277,7 +60231,6 @@ export namespace Prisma {
     title?: StringFieldUpdateOperationsInput | string
     description?: NullableStringFieldUpdateOperationsInput | string | null
     visibility?: EnumVideoVisibilityFieldUpdateOperationsInput | $Enums.VideoVisibility
-    thumbnailUrl?: NullableStringFieldUpdateOperationsInput | string | null
     isSystem?: BoolFieldUpdateOperationsInput | boolean
     systemType?: NullableEnumPlaylistSystemTypeFieldUpdateOperationsInput | $Enums.PlaylistSystemType | null
     videoCount?: IntFieldUpdateOperationsInput | number

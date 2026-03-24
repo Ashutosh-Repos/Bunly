@@ -113,6 +113,7 @@ export function DetailsStep() {
                         <div 
                             className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ring-2 ring-primary border-primary`}
                         >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                                 src={customThumbnailUrl || getMediaUrl(currentThumbnail)} 
                                 alt="Custom Thumbnail" 

@@ -46,7 +46,7 @@ export const searchRouter = router({
             type SearchPlaylist = {
                 id: string;
                 title: string;
-                thumbnailUrl: string | null;
+                firstVideoThumbnail: string | null;
                 videoCount: number;
                 updatedAt: string;
                 channels: {
@@ -133,7 +133,6 @@ export const searchRouter = router({
                     select: {
                         id: true,
                         title: true,
-                        thumbnailUrl: true,
                         videoCount: true,
                         updatedAt: true,
                         channels: {
@@ -144,6 +143,15 @@ export const searchRouter = router({
                                 image: true,
                             },
                         },
+                        playlist_videos: {
+                            take: 1,
+                            orderBy: { position: "asc" },
+                            select: {
+                                videos: {
+                                    select: { thumbnailUrl: true },
+                                },
+                            },
+                        },
                     },
                 });
 
@@ -152,10 +160,14 @@ export const searchRouter = router({
                     nextCursor = nextItem!.id;
                 }
 
-                fetchedPlaylists = playlistsList.map((p) => ({
-                    ...p,
-                    updatedAt: p.updatedAt.toISOString(),
-                }));
+                fetchedPlaylists = playlistsList.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        updatedAt: rest.updatedAt.toISOString(),
+                        firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
+                    };
+                });
 
                 return {
                     channels: [],
@@ -198,7 +210,6 @@ export const searchRouter = router({
                         select: {
                             id: true,
                             title: true,
-                            thumbnailUrl: true,
                             videoCount: true,
                             updatedAt: true,
                             channels: {
@@ -207,6 +218,15 @@ export const searchRouter = router({
                                     name: true,
                                     handle: true,
                                     image: true,
+                                },
+                            },
+                            playlist_videos: {
+                                take: 1,
+                                orderBy: { position: "asc" },
+                                select: {
+                                    videos: {
+                                        select: { thumbnailUrl: true },
+                                    },
                                 },
                             },
                         },
@@ -233,10 +253,14 @@ export const searchRouter = router({
                         isSubscribed: false,
                     }));
                 }
-                fetchedPlaylists = playlistsList.map((p) => ({
-                    ...p,
-                    updatedAt: p.updatedAt.toISOString(),
-                }));
+                fetchedPlaylists = playlistsList.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        updatedAt: rest.updatedAt.toISOString(),
+                        firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
+                    };
+                });
             }
 
             // Prisma text search fallback (Can be upgraded to Raw SQL tsvector proxy)

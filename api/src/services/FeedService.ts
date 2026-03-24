@@ -42,6 +42,7 @@ interface RawFeedRow {
     channelSubscriberCount: number | null;
     viewCount: number;
     createdAt: Date | string;
+    publishedAt: Date | string | null;
     duration: number | null;
     isShort: boolean;
 }
@@ -621,6 +622,11 @@ export class FeedService {
                 v.createdAt instanceof Date
                     ? v.createdAt.toISOString()
                     : v.createdAt,
+            publishedAt: v.publishedAt
+                ? v.publishedAt instanceof Date
+                    ? v.publishedAt.toISOString()
+                    : v.publishedAt
+                : null,
             duration: v.duration,
             isShort: v.isShort || false,
         }));

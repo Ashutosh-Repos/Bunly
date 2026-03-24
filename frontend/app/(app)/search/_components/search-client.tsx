@@ -7,8 +7,8 @@ import { IconSearch, IconUser, IconPlaylist } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import Link from "next/link";
+import { PlaylistCard } from "@/components/custom/playlist-card";
 import { Card } from "@/components/ui/card";
-import Image from "next/image";
 import { getMediaUrl } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
@@ -158,36 +158,14 @@ export function SearchClient() {
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {playlists.map((playlist) => (
-                            <Link key={playlist.id} href={`/playlist/${playlist.id}`} className="group cursor-pointer">
-                                <Card className="p-0 overflow-hidden bg-muted/20 border-border/40 hover:border-primary/50 transition-colors shadow-none">
-                                    <div className="aspect-video relative bg-muted flex items-center justify-center isolate">
-                                        <div className="absolute inset-x-0 bottom-0 h-10 bg-black/60 backdrop-blur-sm z-10 flex flex-col justify-center px-3 tracking-tight group-hover:bg-primary/90 transition-colors">
-                                            <span className="text-white font-semibold flex items-center gap-2 text-sm">
-                                                <IconPlaylist size={16} />
-                                                {playlist.videoCount}
-                                            </span>
-                                        </div>
-                                        {playlist.thumbnailUrl ? (
-                                            <Image 
-                                                src={getMediaUrl(playlist.thumbnailUrl)}
-                                                alt={playlist.title}
-                                                fill
-                                                className="object-cover group-hover:scale-105 transition-transform"
-                                            />
-                                        ) : (
-                                            <IconPlaylist className="w-10 h-10 text-muted-foreground/30" />
-                                        )}
-                                    </div>
-                                    <div className="p-3">
-                                        <h3 className="font-semibold text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                                            {playlist.title}
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                                            By {playlist.channels?.name || "Unknown"}
-                                        </p>
-                                    </div>
-                                </Card>
-                            </Link>
+                            <PlaylistCard
+                                key={playlist.id}
+                                id={playlist.id}
+                                title={playlist.title}
+                                videoCount={playlist.videoCount}
+                                firstVideoThumbnail={playlist.firstVideoThumbnail}
+                                authorName={`By ${playlist.channels?.name || "Unknown"}`}
+                            />
                         ))}
                     </div>
                 </section>

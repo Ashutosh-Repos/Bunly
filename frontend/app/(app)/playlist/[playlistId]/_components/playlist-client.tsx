@@ -36,14 +36,30 @@ export function PlaylistClient({ playlist }: { playlist: Playlist }) {
                         <div className="absolute inset-0 bg-black/20" />
                     </div>
 
-                    <h1 className="text-2xl font-bold line-clamp-2 leading-tight mb-4">
+                    <h1 className="text-2xl font-bold line-clamp-2 leading-tight mb-2">
                         {playlist.title}
                     </h1>
 
-                    <div className="flex flex-col gap-2 text-sm text-foreground/80 mb-6 font-medium">
-                        <span className="font-semibold text-foreground">{playlist.authorName || "User"}</span>
-                        <span>{videos.length} videos</span>
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase ${
+                            playlist.visibility === "PUBLIC" ? "bg-green-500/10 text-green-500" :
+                            playlist.visibility === "UNLISTED" ? "bg-orange-500/10 text-orange-500" :
+                            "bg-red-500/10 text-red-500"
+                        }`}>
+                            {playlist.visibility}
+                        </span>
+                        <div className="flex gap-1 text-sm text-foreground/80 font-medium">
+                            <span className="font-semibold text-foreground">{playlist.authorName || "User"}</span>
+                            <span className="opacity-50">•</span>
+                            <span>{videos.length} videos</span>
+                        </div>
                     </div>
+
+                    {playlist.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-3 mb-6 leading-relaxed bg-black/5 p-3 rounded-lg border border-black/5">
+                            {playlist.description}
+                        </p>
+                    )}
 
                     <div className="flex gap-3 mt-auto">
                         <Link href={firstVideo ? `/watch/${firstVideo.id}?list=${playlist.id}` : "#"} className="flex-1">

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -20,7 +21,9 @@ export function ShortsClient() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const activeIndexRef = useRef(activeIndex);
-    activeIndexRef.current = activeIndex;
+    useEffect(() => {
+        activeIndexRef.current = activeIndex;
+    }, [activeIndex]);
 
     const { ref: loadMoreRef, inView: loadMoreInView } = useInView({ threshold: 0 });
 

@@ -43,6 +43,7 @@ export function HomeClient() {
         if (inView && query.hasNextPage && !query.isFetchingNextPage) {
             query.fetchNextPage();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inView, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
 
     const videos = query.data?.pages.flatMap((p) => p.videos) || [];

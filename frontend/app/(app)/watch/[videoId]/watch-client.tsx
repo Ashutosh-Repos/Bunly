@@ -13,7 +13,10 @@ import {
     IconThumbDown,
     IconShare,
     IconVideo,
+    IconPlayerPlayFilled
 } from "@tabler/icons-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
 import { CommentsSection } from "./_components/comments-section";
@@ -23,6 +26,26 @@ import { ReportVideoModal } from "./_components/report-modal";
 export default function WatchPage({ params }: { params: Promise<{ videoId: string }> }) {
     const { videoId } = use(params);
     const utils = trpc.useUtils();
+    
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const playlistId = searchParams.get("list");
+    const indexStr = searchParams.get("index");
+    const currentIndex = indexStr ? parseInt(indexStr) : 0;
+
+    const { data: playlistData } = trpc.playlist.getPlaylistFlow.useQuery(
+        { playlistId: playlistId! },
+        { enabled: !!playlistId, refetchOnWindowFocus: false }
+    );
+
+    const handleVideoEnded = useCallback(() => {
+        if (playlistData && playlistData.videos && currentIndex < playlistData.videos.length - 1) {
+            const nextVideo = playlistData.videos[currentIndex + 1];
+            if (nextVideo?.id) {
+                router.push(`/watch/${nextVideo.id}?list=${playlistId}&index=${currentIndex + 1}`);
+            }
+        }
+    }, [playlistData, currentIndex, playlistId, router]);
 
     const { data, isLoading, error } = trpc.video.getPublicVideo.useQuery(
         { videoId },
@@ -215,6 +238,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                         chapters={video.chapters}
                         autoPlay={true}
                         onTimeUpdate={handleTimeUpdate}
+                        onEnded={handleVideoEnded}
                         // Resume from watch history if available
                         {...(video.history?.watchedSeconds && video.history.watchedSeconds > 10
                             ? { startAt: video.history.watchedSeconds }
@@ -320,6 +344,54 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
 
             {/* Sidebar — L2: Real related videos */}
             <div className="w-full xl:w-[400px] shrink-0 flex flex-col gap-4">
+                
+                {/* Playlist Queue */}
+                {playlistData && playlistData.videos && playlistData.videos.length > 0 && (
+                    <div className="border border-border/40 rounded-xl overflow-hidden bg-muted/10 mb-2 shadow-sm">
+                        <div className="p-4 bg-muted/40 border-b border-border/40">
+                            <h3 className="font-bold text-lg leading-tight line-clamp-1">{playlistData.title}</h3>
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                                {playlistData.authorName} • {currentIndex + 1} / {playlistData.videos.length}
+                            </p>
+                        </div>
+                        <div className="max-h-[400px] overflow-y-auto flex flex-col p-2 gap-1 custom-scrollbar">
+                            {playlistData.videos.map((v, idx) => {
+                                const isPlaying = idx === currentIndex && v.id === videoId;
+                                return (
+                                    <Link 
+                                        key={v.id} 
+                                        href={`/watch/${v.id}?list=${playlistId}&index=${idx}`}
+                                        className={cn(
+                                            "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group",
+                                            isPlaying ? "bg-primary/10 hover:bg-primary/15" : ""
+                                        )}
+                                    >
+                                        <div className="w-4 flex justify-center text-xs font-medium shrink-0 text-muted-foreground group-hover:hidden">
+                                            {isPlaying ? <IconPlayerPlayFilled size={12} className="text-primary" /> : idx + 1}
+                                        </div>
+                                        <div className="w-4 hidden justify-center shrink-0 group-hover:flex text-muted-foreground group-hover:text-foreground">
+                                            <IconPlayerPlayFilled size={12} />
+                                        </div>
+                                        <div className="w-[100px] aspect-video bg-muted/40 rounded-md shrink-0 relative overflow-hidden ring-1 ring-border/10">
+                                            {v.thumbnailUrl ? (
+                                                <Image src={getMediaUrl(v.thumbnailUrl)} alt={v.title} fill className="object-cover" sizes="100px" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <IconVideo size={16} className="text-muted-foreground/30" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col py-0.5 flex-1 min-w-0">
+                                            <span className={cn("text-sm font-medium leading-tight line-clamp-2", isPlaying ? "text-primary" : "")}>{v.title}</span>
+                                            <span className="text-xs text-muted-foreground mt-1 line-clamp-1">{v.channelName}</span>
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Up Next</span>
                 </div>

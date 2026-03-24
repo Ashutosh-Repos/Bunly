@@ -100,9 +100,9 @@ export function LibraryClient() {
                                                 {playlist.videoCount} videos
                                             </span>
                                         </div>
-                                        {playlist.thumbnailUrl ? (
+                                        {playlist.firstVideoThumbnail ? (
                                             <Image 
-                                                src={getMediaUrl(playlist.thumbnailUrl)}
+                                                src={getMediaUrl(playlist.firstVideoThumbnail)}
                                                 alt={playlist.title}
                                                 fill
                                                 className="object-cover group-hover:scale-105 transition-transform duration-300"

@@ -24,6 +24,7 @@ interface VideoPlayerProps {
     onReady?: () => void;
     onError?: (error: unknown) => void;
     onTimeUpdate?: (seconds: number) => void;
+    onEnded?: () => void;
 }
 
 export function VideoPlayer({
@@ -37,6 +38,7 @@ export function VideoPlayer({
     onReady,
     onError,
     onTimeUpdate,
+    onEnded,
 }: VideoPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -50,9 +52,11 @@ export function VideoPlayer({
     const onReadyRef = useRef(onReady);
     const onErrorRef = useRef(onError);
     const onTimeUpdateRef = useRef(onTimeUpdate);
+    const onEndedRef = useRef(onEnded);
     useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
     useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
+    useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
 
     // FIX: Initialize isPlaying=false — let the play/pause DOM events set it correctly
     const [isPlaying, setIsPlaying] = useState(false);
@@ -244,17 +248,20 @@ export function VideoPlayer({
         };
         const updateDuration = () => setDuration(video.duration);
         const updatePlayState = () => setIsPlaying(!video.paused);
+        const handleEnded = () => onEndedRef.current?.();
 
         video.addEventListener("timeupdate", updateTime);
         video.addEventListener("durationchange", updateDuration);
         video.addEventListener("play", updatePlayState);
         video.addEventListener("pause", updatePlayState);
+        video.addEventListener("ended", handleEnded);
 
         return () => {
             video.removeEventListener("timeupdate", updateTime);
             video.removeEventListener("durationchange", updateDuration);
             video.removeEventListener("play", updatePlayState);
             video.removeEventListener("pause", updatePlayState);
+            video.removeEventListener("ended", handleEnded);
         };
     }, []); // Stable — no callback props in deps
 

@@ -286,7 +286,6 @@ exports.Prisma.PlaylistsScalarFieldEnum = {
   title: 'title',
   description: 'description',
   visibility: 'visibility',
-  thumbnailUrl: 'thumbnailUrl',
   isSystem: 'isSystem',
   systemType: 'systemType',
   videoCount: 'videoCount',
@@ -637,8 +636,7 @@ exports.Prisma.playlistsOrderByRelevanceFieldEnum = {
   userId: 'userId',
   channelId: 'channelId',
   title: 'title',
-  description: 'description',
-  thumbnailUrl: 'thumbnailUrl'
+  description: 'description'
 };
 
 exports.Prisma.reportsOrderByRelevanceFieldEnum = {

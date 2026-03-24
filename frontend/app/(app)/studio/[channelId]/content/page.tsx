@@ -29,6 +29,7 @@ import { useUpload } from "@/components/providers/upload-provider";
 import { useRouter } from "next/navigation";
 import { IconDotsVertical, IconTrash, IconEdit, IconLoader2 } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { StudioPlaylistsTab } from "./_components/studio-playlists-tab";
 
 export default function StudioContentPage() {
     const params = useParams();
@@ -36,6 +37,7 @@ export default function StudioContentPage() {
     const { openModal } = useUpload();
     
     const [search, setSearch] = useState("");
+    const [activeTab, setActiveTab] = useState<"videos" | "playlists">("videos");
 
     const router = useRouter();
 
@@ -99,7 +101,25 @@ export default function StudioContentPage() {
                 </div>
             </div>
 
-            <div className="border rounded-lg overflow-hidden bg-card">
+            <div className="flex gap-6 border-b border-border/40 mb-6 font-medium text-sm">
+                <button 
+                    onClick={() => setActiveTab("videos")}
+                    className={`pb-3 relative transition-colors ${activeTab === "videos" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                    Videos
+                    {activeTab === "videos" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-sm" />}
+                </button>
+                <button 
+                    onClick={() => setActiveTab("playlists")}
+                    className={`pb-3 relative transition-colors ${activeTab === "playlists" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                    Playlists
+                    {activeTab === "playlists" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-sm" />}
+                </button>
+            </div>
+
+            {activeTab === "videos" && (
+                <div className="border rounded-lg overflow-hidden bg-card">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>
@@ -248,12 +268,17 @@ export default function StudioContentPage() {
                     </TableBody>
                 </Table>
             </div>
+            )}
 
             {/* Infinite scroll sentinel */}
-            {hasNextPage && (
+            {activeTab === "videos" && hasNextPage && (
                 <div ref={sentinelRef} className="flex justify-center py-4">
                     {isFetchingNextPage && <IconLoader2 className="animate-spin text-muted-foreground" />}
                 </div>
+            )}
+
+            {activeTab === "playlists" && (
+                <StudioPlaylistsTab channelId={channelId} search={search} />
             )}
         </div>
     );

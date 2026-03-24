@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export function SaveToPlaylistModal({ videoId }: { videoId: string }) {
+export function SaveToPlaylistModal({ 
+    videoId,
+    channelId, 
+}: { 
+    videoId: string;
+    channelId?: string;
+}) {
     const [open, setOpen] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newTitle, setNewTitle] = useState("");
@@ -23,19 +29,55 @@ export function SaveToPlaylistModal({ videoId }: { videoId: string }) {
     );
 
     const addMutation = trpc.playlist.addVideoToPlaylist.useMutation({
-        onSuccess: () => {
-            utils.playlist.getUserPlaylists.invalidate({ videoId });
-            toast.success("Added to playlist");
+        onMutate: async ({ playlistId }) => {
+            await utils.playlist.getUserPlaylists.cancel({ videoId });
+            const prev = utils.playlist.getUserPlaylists.getData({ videoId });
+            if (prev) {
+                utils.playlist.getUserPlaylists.setData(
+                    { videoId },
+                    {
+                        ...prev,
+                        playlists: prev.playlists.map(p => 
+                            p.id === playlistId ? { ...p, containsVideo: true, videoCount: p.videoCount + 1 } : p
+                        )
+                    }
+                );
+            }
+            return { prev };
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _, context) => {
+            if (context?.prev) utils.playlist.getUserPlaylists.setData({ videoId }, context.prev);
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.playlist.getUserPlaylists.invalidate({ videoId });
+        }
     });
 
     const removeMutation = trpc.playlist.removeVideoFromPlaylist.useMutation({
-        onSuccess: () => {
-            utils.playlist.getUserPlaylists.invalidate({ videoId });
-            toast.success("Removed from playlist");
+        onMutate: async ({ playlistId }) => {
+            await utils.playlist.getUserPlaylists.cancel({ videoId });
+            const prev = utils.playlist.getUserPlaylists.getData({ videoId });
+            if (prev) {
+                utils.playlist.getUserPlaylists.setData(
+                    { videoId },
+                    {
+                        ...prev,
+                        playlists: prev.playlists.map(p => 
+                            p.id === playlistId ? { ...p, containsVideo: false, videoCount: p.videoCount - 1 } : p
+                        )
+                    }
+                );
+            }
+            return { prev };
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _, context) => {
+            if (context?.prev) utils.playlist.getUserPlaylists.setData({ videoId }, context.prev);
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.playlist.getUserPlaylists.invalidate({ videoId });
+        }
     });
 
     const createMutation = trpc.playlist.createPlaylist.useMutation({
@@ -58,7 +100,10 @@ export function SaveToPlaylistModal({ videoId }: { videoId: string }) {
 
     const handleCreate = () => {
         if (!newTitle.trim()) return;
-        createMutation.mutate({ title: newTitle });
+        createMutation.mutate({ 
+            title: newTitle,
+            channelId: channelId || undefined,
+        });
     };
 
     return (
@@ -85,7 +130,8 @@ export function SaveToPlaylistModal({ videoId }: { videoId: string }) {
                                 <button 
                                     key={pl.id} 
                                     onClick={() => togglePlaylist(pl.id, pl.containsVideo)}
-                                    className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors w-full text-left"
+                                    disabled={addMutation.isPending || removeMutation.isPending}
+                                    className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <div 
                                         className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
