@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { VideoPlayer } from "@/components/custom/video-player";
-import { getMediaUrl, formatDuration } from "@/lib/utils";
+import { getMediaUrl } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,8 +19,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
+import { CompactVideoCard, CompactVideoCardSkeleton } from "@/components/custom/compact-video-card";
 import { CommentsSection } from "./_components/comments-section";
-import { SaveToPlaylistModal } from "./_components/save-to-playlist-modal";
+
 import { ReportVideoModal } from "./_components/report-modal";
 
 export default function WatchPage({ params }: { params: Promise<{ videoId: string }> }) {
@@ -146,13 +147,13 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
         onMutate: async () => {
             await utils.video.getPublicVideo.cancel({ videoId });
             const previousData = utils.video.getPublicVideo.getData({ videoId });
-            if (previousData && previousData.channels) {
+            if (previousData && previousData.author) {
                 const wasSubscribed = previousData.engagement?.subscribed ?? false;
                 utils.video.getPublicVideo.setData({ videoId }, {
                     ...previousData,
-                    channels: {
-                        ...previousData.channels,
-                        subscriberCount: Math.max(0, (previousData.channels.subscriberCount ?? 0) + (wasSubscribed ? -1 : 1))
+                    author: {
+                        ...previousData.author,
+                        subscriberCount: Math.max(0, (previousData.author.subscriberCount ?? 0) + (wasSubscribed ? -1 : 1))
                     },
                     engagement: {
                         liked: previousData.engagement?.liked ?? false,
@@ -217,7 +218,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
     }
 
     const video = data;
-    const channel = video.channels;
+    const channel = video.author;
     const engagement = video.engagement;
 
     // L1: Use publishedAt if available, otherwise createdAt
@@ -305,7 +306,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                             </button>
                         </div>
 
-                        <SaveToPlaylistModal videoId={video.id} />
+
                         <ReportVideoModal videoId={video.id} />
 
                         <Button
@@ -398,14 +399,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                 {recsLoading ? (
                     /* Skeleton while loading */
                     Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex gap-2 animate-pulse">
-                            <div className="w-[160px] aspect-video bg-muted/40 rounded-lg shrink-0" />
-                            <div className="flex flex-col py-1 gap-2 flex-1">
-                                <div className="h-3 bg-muted rounded w-5/6" />
-                                <div className="h-2 bg-muted rounded w-3/6" />
-                                <div className="h-2 bg-muted rounded w-2/6" />
-                            </div>
-                        </div>
+                        <CompactVideoCardSkeleton key={i} />
                     ))
                 ) : relatedVideos.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-8 text-center bg-muted/20 border border-border/10 rounded-xl">
@@ -413,38 +407,7 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
                     </div>
                 ) : (
                     relatedVideos.map((v) => (
-                        <Link key={v.id} href={`/watch/${v.id}`} className="flex gap-2 group cursor-pointer">
-                            <div className="w-[160px] aspect-video bg-muted/40 rounded-lg shrink-0 relative overflow-hidden ring-1 ring-border/10 group-hover:ring-primary/50 transition-all">
-                                {v.thumbnailUrl ? (
-                                    <Image
-                                        src={getMediaUrl(v.thumbnailUrl)}
-                                        alt={v.title}
-                                        fill
-                                        className="object-cover"
-                                        sizes="160px"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <IconVideo size={20} className="text-muted-foreground/30" />
-                                    </div>
-                                )}
-                                {(v.duration ?? 0) > 0 && (
-                                    <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[10px] px-1 rounded font-medium">
-                                        {formatDuration(v.duration)}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex flex-col py-1">
-                                <span className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                                    {v.title}
-                                </span>
-                                <span className="text-xs text-muted-foreground mt-1">{v.channels?.name}</span>
-                                <span className="text-[10px] text-muted-foreground/80 mt-0.5">
-                                    {v.viewCount.toLocaleString()} views
-                                    {v.publishedAt && ` • ${formatDistanceToNow(new Date(v.publishedAt), { addSuffix: true })}`}
-                                </span>
-                            </div>
-                        </Link>
+                        <CompactVideoCard key={v.id} video={v} />
                     ))
                 )}
             </div>

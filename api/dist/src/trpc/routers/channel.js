@@ -271,17 +271,23 @@ export const channelRouter = router({
         let isSubscribed = false;
         let notificationLevel = "PERSONALIZED";
         if (ctx.session.user.id) {
-            const sub = yield prisma.subscriptions.findUnique({
-                where: {
-                    subscriberId_channelId: {
-                        subscriberId: ctx.session.user.id,
-                        channelId: channel.id,
+            // Hybrid Read: Check Redis cache first (write-behind), then DB
+            const [cachedSub, sub] = yield Promise.all([
+                StreamService.getSubscriptionStatus(ctx.session.user.id, channel.id),
+                prisma.subscriptions.findUnique({
+                    where: {
+                        subscriberId_channelId: {
+                            subscriberId: ctx.session.user.id,
+                            channelId: channel.id,
+                        },
                     },
-                },
-                select: { notificationLevel: true },
-            });
+                    select: { notificationLevel: true },
+                }),
+            ]);
+            isSubscribed = cachedSub !== null
+                ? cachedSub === "SUBSCRIBE"
+                : !!sub;
             if (sub) {
-                isSubscribed = true;
                 notificationLevel = sub.notificationLevel;
             }
         }

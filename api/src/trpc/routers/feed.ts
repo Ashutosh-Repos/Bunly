@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../router.js";
+import { router, protectedProcedure, publicProcedure } from "../router.js";
 import { FeedService, feedCursorSchema } from "../../services/FeedService";
 
 export const feedRouter = router({
@@ -81,46 +81,52 @@ export const feedRouter = router({
             );
         }),
 
-    getRecommendations: protectedProcedure
+    getRecommendations: publicProcedure
         .input(
             z.object({
                 videoId: z.string(),
                 cursor: feedCursorSchema.optional(),
+                limit: z.number().optional(),
             }),
         )
         .query(async ({ ctx, input }) => {
             return await FeedService.getRecommendations(
                 input.videoId,
-                ctx.session.user.id,
+                ctx.session?.user?.id,
                 input.cursor,
+                input.limit,
             );
         }),
 
-    getChannelVideos: protectedProcedure
+    getChannelVideos: publicProcedure
         .input(
             z.object({
                 channelId: z.string(),
                 cursor: feedCursorSchema.optional(),
+                limit: z.number().optional(),
             }),
         )
         .query(async ({ input }) => {
             return await FeedService.getChannelVideos(
                 input.channelId,
                 input.cursor,
+                input.limit,
             );
         }),
 
-    getChannelShorts: protectedProcedure
+    getChannelShorts: publicProcedure
         .input(
             z.object({
                 channelId: z.string(),
                 cursor: feedCursorSchema.optional(),
+                limit: z.number().optional(),
             }),
         )
         .query(async ({ input }) => {
             return await FeedService.getChannelShorts(
                 input.channelId,
                 input.cursor,
+                input.limit,
             );
         }),
 });

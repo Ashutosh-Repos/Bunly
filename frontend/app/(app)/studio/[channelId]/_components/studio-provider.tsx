@@ -9,6 +9,7 @@ export interface Channel {
     image: string | null;
     subscriberCount: number;
     videoCount: number;
+    totalViews: number;
 }
 
 interface StudioContextValue {

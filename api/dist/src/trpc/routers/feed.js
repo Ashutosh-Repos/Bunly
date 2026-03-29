@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { z } from "zod";
-import { router, protectedProcedure } from "../router.js";
+import { router, protectedProcedure, publicProcedure } from "../router.js";
 import { FeedService, feedCursorSchema } from "../../services/FeedService";
 export const feedRouter = router({
     getSubscriptionsFeed: protectedProcedure
@@ -53,28 +53,32 @@ export const feedRouter = router({
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         return yield FeedService.getTrendingShorts(ctx.session.user.id, input.cursor);
     })),
-    getRecommendations: protectedProcedure
+    getRecommendations: publicProcedure
         .input(z.object({
         videoId: z.string(),
         cursor: feedCursorSchema.optional(),
+        limit: z.number().optional(),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
-        return yield FeedService.getRecommendations(input.videoId, ctx.session.user.id, input.cursor);
+        var _b, _c;
+        return yield FeedService.getRecommendations(input.videoId, (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id, input.cursor, input.limit);
     })),
-    getChannelVideos: protectedProcedure
+    getChannelVideos: publicProcedure
         .input(z.object({
         channelId: z.string(),
         cursor: feedCursorSchema.optional(),
+        limit: z.number().optional(),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
-        return yield FeedService.getChannelVideos(input.channelId, input.cursor);
+        return yield FeedService.getChannelVideos(input.channelId, input.cursor, input.limit);
     })),
-    getChannelShorts: protectedProcedure
+    getChannelShorts: publicProcedure
         .input(z.object({
         channelId: z.string(),
         cursor: feedCursorSchema.optional(),
+        limit: z.number().optional(),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
-        return yield FeedService.getChannelShorts(input.channelId, input.cursor);
+        return yield FeedService.getChannelShorts(input.channelId, input.cursor, input.limit);
     })),
 });

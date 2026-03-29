@@ -13,7 +13,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getMediaUrl } from "@/lib/utils";
+import { getMediaUrl, formatDuration } from "@/lib/utils";
 
 // Matches the exact shape returned by HistoryService.fetchHistoryFromDatabase
 export interface HistoryItemData {
@@ -34,7 +34,7 @@ export interface HistoryItemData {
             id: string;
             handle?: string | null;
             name: string;
-            image?: string | null; // [FIX] field IS returned by backend but was missing from interface
+            image?: string | null;
         };
     };
 }
@@ -42,19 +42,6 @@ export interface HistoryItemData {
 interface HistoryItemProps {
     item: HistoryItemData;
     onRemove: (videoId: string) => void;
-}
-
-// [FIX] Added Math.floor on the raw `seconds` argument to guard against float inputs
-// e.g. 183.7 → 183 so `183 % 60 = 3` not `3.7` → never produces NaN:NaN:NaN
-function formatDuration(seconds: number) {
-    const totalSec = Math.floor(seconds);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    if (h > 0) {
-        return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-    }
-    return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export const HistoryItem = memo(function HistoryItem({

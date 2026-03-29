@@ -309,20 +309,20 @@ export class FeedService {
      * Get Public Videos for a Channel (paginated, newest first)
      */
     static getChannelVideos(channelId_1) {
-        return __awaiter(this, arguments, void 0, function* (channelId, cursor = 0) {
-            return this.runChannelFeed(channelId, cursor, false);
+        return __awaiter(this, arguments, void 0, function* (channelId, cursor = 0, limit) {
+            return this.runChannelFeed(channelId, cursor, false, limit);
         });
     }
     /**
      * Get Public Shorts for a Channel (paginated, newest first)
      */
     static getChannelShorts(channelId_1) {
-        return __awaiter(this, arguments, void 0, function* (channelId, cursor = 0) {
-            return this.runChannelFeed(channelId, cursor, true);
+        return __awaiter(this, arguments, void 0, function* (channelId, cursor = 0, limit) {
+            return this.runChannelFeed(channelId, cursor, true, limit);
         });
     }
-    static runChannelFeed(channelId, cursor, isShort) {
-        return __awaiter(this, void 0, void 0, function* () {
+    static runChannelFeed(channelId_1, cursor_1, isShort_1) {
+        return __awaiter(this, arguments, void 0, function* (channelId, cursor, isShort, limit = this.PAGE_SIZE) {
             try {
                 const limit = this.PAGE_SIZE;
                 const videos = yield prisma.$queryRaw `
@@ -358,7 +358,7 @@ export class FeedService {
      * Weighted heavily towards the same category and channel.
      */
     static getRecommendations(videoId_1, userId_1) {
-        return __awaiter(this, arguments, void 0, function* (videoId, userId, cursor = 0) {
+        return __awaiter(this, arguments, void 0, function* (videoId, userId, cursor = 0, limit = this.PAGE_SIZE) {
             try {
                 const limit = this.PAGE_SIZE;
                 // 1. Fetch source video contexts
@@ -501,10 +501,10 @@ export class FeedService {
             previewSprite: v.previewSprite || null,
             hlsPlaylistUrl: v.hlsPlaylistUrl || null,
             channelId: v.channelId,
-            channels: {
+            author: {
                 id: v.channelId,
-                name: v.channelName || null,
-                handle: v.channelHandle || null,
+                name: v.channelName || "Unknown Channel",
+                handle: v.channelHandle || "",
                 image: v.channelImage || null,
                 subscriberCount: v.channelSubscriberCount || 0,
             },
@@ -512,6 +512,11 @@ export class FeedService {
             createdAt: v.createdAt instanceof Date
                 ? v.createdAt.toISOString()
                 : v.createdAt,
+            publishedAt: v.publishedAt
+                ? v.publishedAt instanceof Date
+                    ? v.publishedAt.toISOString()
+                    : v.publishedAt
+                : null,
             duration: v.duration,
             isShort: v.isShort || false,
         }));

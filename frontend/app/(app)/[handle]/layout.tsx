@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 import { createContext, useContext } from "react";
 import { type RouterOutputs } from "@/lib/trpc-client";
+import { authClient } from "@/lib/auth";
 
 interface ChannelLayoutProps {
     children: React.ReactNode;
@@ -40,17 +41,16 @@ export function useChannelContext() {
 export default function ChannelLayout({ children, params }: ChannelLayoutProps) {
     const resolvedParams = use(params);
     const decodedHandle = decodeURIComponent(resolvedParams.handle);
+    const cleanHandle = decodedHandle.startsWith("@") ? decodedHandle.slice(1) : "";
     
-    // Only map routes starting with '@' to the Channel Layout
-    if (!decodedHandle.startsWith("@")) {
-        notFound();
-    }
-
-    const cleanHandle = decodedHandle.slice(1);
+    // Hooks MUST be called at the top level, before any early returns
     const pathname = usePathname();
-
     const utils = trpc.useUtils();
-    const { data, isLoading, isError } = trpc.channel.getChannelByHandle.useQuery({ handle: cleanHandle });
+    const { data: session } = authClient.useSession();
+    const { data, isLoading, isError } = trpc.channel.getChannelByHandle.useQuery(
+        { handle: cleanHandle },
+        { enabled: !!cleanHandle }
+    );
     
     const toggleSub = trpc.channel.toggleSubscription.useMutation({
         onMutate: async () => {
@@ -81,6 +81,11 @@ export default function ChannelLayout({ children, params }: ChannelLayoutProps) 
             }, 3000);
         },
     });
+
+    // Early return for invalid handles AFTER hooks are called
+    if (!decodedHandle.startsWith("@")) {
+        notFound();
+    }
 
     if (isLoading) {
         return (
@@ -119,28 +124,32 @@ export default function ChannelLayout({ children, params }: ChannelLayoutProps) 
         { label: "Community", href: `/${decodedHandle}/community` },
     ];
 
-    return (
-        <div className="w-full min-h-screen bg-background pb-20">
-            {/* Banner */}
-            <div className="w-full aspect-6/1 md:aspect-8/1 md:max-h-[250px] relative bg-muted overflow-hidden">
-                {channel.bannerUrl ? (
-                    <Image
-                        src={getMediaUrl(channel.bannerUrl)}
-                        alt={`${channel.name} banner`}
-                        fill
-                        className="object-cover"
-                        priority
-                    />
-                ) : (
-                    <div className="absolute inset-0 bg-linear-to-r from-muted to-muted/50" />
-                )}
-            </div>
+    const isOwner = session?.user?.id === channel.userId;
 
-            <div className="max-w-[1400px] mx-auto">
-                {/* Profile Header */}
-                <div className="px-4 sm:px-8 pt-4 pb-6 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 bg-background relative z-10">
-                    <Avatar className="w-24 h-24 sm:w-[160px] sm:h-[160px] border-4 border-background shadow-md shrink-0">
-                        <AvatarImage src={channel.image ? getMediaUrl(channel.image) : ""} className="object-cover" />
+    return (
+        <ChannelContext.Provider value={{ channel, isSubscribed, isOwner }}>
+            <div className="w-full min-h-screen bg-background pb-20">
+                {/* Banner */}
+                <div className="w-full aspect-6/1 md:aspect-8/1 md:max-h-[250px] relative bg-muted overflow-hidden">
+                    {channel.bannerUrl ? (
+                        <Image
+                            src={getMediaUrl(channel.bannerUrl)}
+                            alt={`${channel.name} banner`}
+                            fill
+                            className="object-cover"
+                            priority
+                            sizes="100vw"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 bg-linear-to-r from-muted to-muted/50" />
+                    )}
+                </div>
+
+                <div className="max-w-[1400px] mx-auto">
+                    {/* Profile Header */}
+                    <div className="px-4 sm:px-8 pt-4 pb-6 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 bg-background relative z-10">
+                        <Avatar className="w-24 h-24 sm:w-[160px] sm:h-[160px] border-4 border-background shadow-md shrink-0">
+                            <AvatarImage src={channel.image ? getMediaUrl(channel.image) : ""} className="object-cover" />
                         <AvatarFallback className="text-4xl sm:text-6xl font-bold bg-muted">
                             {(channel.name || "C").charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -219,6 +228,7 @@ export default function ChannelLayout({ children, params }: ChannelLayoutProps) 
                     {children}
                 </div>
             </div>
-        </div>
+            </div>
+        </ChannelContext.Provider>
     );
 }

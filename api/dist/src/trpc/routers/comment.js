@@ -24,7 +24,7 @@ export const commentRouter = router({
         var _b, _c, _d;
         const { videoId, sortBy, cursor, limit } = input;
         const userId = (_d = (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : "";
-        return CommentService.getComments(videoId, sortBy, cursor, limit, userId);
+        return (yield CommentService.getComments(videoId, sortBy, cursor, limit, userId));
     })),
     getById: protectedProcedure
         .input(z.object({ id: z.string() }))
@@ -47,7 +47,7 @@ export const commentRouter = router({
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
         const { parentId, cursor, limit } = input;
         const userId = ctx.session.user.id;
-        return CommentService.getReplies(parentId, cursor, limit, userId);
+        return (yield CommentService.getReplies(parentId, cursor, limit, userId));
     })),
     create: protectedProcedure
         .input(z.object({
@@ -57,14 +57,10 @@ export const commentRouter = router({
     }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { videoId, content, parentId } = input;
-        const comment = yield CommentService.createComment(ctx.session.user.id, videoId, content, parentId);
-        if (videoId && !parentId) {
-            yield prisma.videos.update({
-                where: { id: videoId },
-                data: { commentCount: { increment: 1 } },
-            });
-        }
-        return comment;
+        // CommentService.createComment handles:
+        // - DB insert + cache invalidation + notifications
+        // - Streaming commentCount/replyCount increments to CommentCountWorker
+        return CommentService.createComment(ctx.session.user.id, videoId, content, parentId);
     })),
     toggleLike: protectedProcedure
         .input(z.object({ commentId: z.string(), videoId: z.string() }))
@@ -140,19 +136,10 @@ export const commentRouter = router({
     delete: protectedProcedure
         .input(z.object({ commentId: z.string() }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
-        const comment = yield prisma.comments.findUnique({
-            where: { id: input.commentId },
-            select: { videoId: true, parentId: true },
-        });
-        const result = yield CommentService.deleteComment(input.commentId, ctx.session.user.id);
-        // Decrement commentCount (only for top-level comments, matching create logic)
-        if ((comment === null || comment === void 0 ? void 0 : comment.videoId) && !comment.parentId) {
-            yield prisma.videos.update({
-                where: { id: comment.videoId },
-                data: { commentCount: { decrement: 1 } },
-            }).catch((err) => console.error("[Comment] Failed to decrement commentCount", err));
-        }
-        return result;
+        // CommentService.deleteComment handles:
+        // - Soft delete + cache invalidation
+        // - Streaming commentCount decrement to CommentCountWorker
+        return CommentService.deleteComment(input.commentId, ctx.session.user.id);
     })),
     getChannelComments: protectedProcedure
         .input(z.object({
@@ -170,34 +157,6 @@ export const commentRouter = router({
         if (!channel || channel.userId !== ctx.session.user.id) {
             throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
         }
-        const items = yield prisma.comments.findMany({
-            where: {
-                videos: { channelId },
-                status: "VISIBLE",
-                deletedAt: null
-            },
-            take: limit + 1,
-            cursor: cursor ? { id: cursor } : undefined,
-            skip: cursor ? 1 : 0,
-            orderBy: { createdAt: "desc" },
-            include: {
-                user: {
-                    select: {
-                        name: true,
-                        image: true,
-                        channels: { select: { handle: true, name: true, image: true }, take: 1 }
-                    }
-                },
-                videos: {
-                    select: { id: true, title: true, thumbnailUrl: true }
-                }
-            }
-        });
-        let nextCursor = undefined;
-        if (items.length > limit) {
-            const nextItem = items.pop();
-            nextCursor = nextItem === null || nextItem === void 0 ? void 0 : nextItem.id;
-        }
-        return { items, nextCursor };
+        return yield CommentService.getChannelComments(channelId, cursor !== null && cursor !== void 0 ? cursor : null, limit, ctx.session.user.id);
     })),
 });

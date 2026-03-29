@@ -12,10 +12,10 @@ export interface HydratedVideo {
     previewSprite: string | null;
     hlsPlaylistUrl: string | null;
     channelId: string;
-    channels: {
+    author: {
         id: string;
-        name: string | null;
-        handle: string | null;
+        name: string;
+        handle: string;
         image: string | null;
         subscriberCount?: number;
     };
@@ -394,11 +394,12 @@ export class FeedService {
     public static async getChannelVideos(
         channelId: string,
         cursor: FeedCursor = 0,
+        limit?: number,
     ): Promise<{
         videos: HydratedVideo[];
         nextCursor: FeedCursor | undefined;
     }> {
-        return this.runChannelFeed(channelId, cursor, false);
+        return this.runChannelFeed(channelId, cursor, false, limit);
     }
 
     /**
@@ -407,17 +408,19 @@ export class FeedService {
     public static async getChannelShorts(
         channelId: string,
         cursor: FeedCursor = 0,
+        limit?: number,
     ): Promise<{
         videos: HydratedVideo[];
         nextCursor: FeedCursor | undefined;
     }> {
-        return this.runChannelFeed(channelId, cursor, true);
+        return this.runChannelFeed(channelId, cursor, true, limit);
     }
 
     private static async runChannelFeed(
         channelId: string,
         cursor: number,
         isShort: boolean,
+        limit: number = this.PAGE_SIZE,
     ) {
         try {
             const limit = this.PAGE_SIZE;
@@ -456,6 +459,7 @@ export class FeedService {
         videoId: string,
         userId: string | undefined,
         cursor: FeedCursor = 0,
+        limit: number = this.PAGE_SIZE,
     ): Promise<{
         videos: HydratedVideo[];
         nextCursor: FeedCursor | undefined;
@@ -610,10 +614,10 @@ export class FeedService {
             previewSprite: v.previewSprite || null,
             hlsPlaylistUrl: v.hlsPlaylistUrl || null,
             channelId: v.channelId,
-            channels: {
+            author: {
                 id: v.channelId,
-                name: v.channelName || null,
-                handle: v.channelHandle || null,
+                name: v.channelName || "Unknown Channel",
+                handle: v.channelHandle || "",
                 image: v.channelImage || null,
                 subscriberCount: v.channelSubscriberCount || 0,
             },

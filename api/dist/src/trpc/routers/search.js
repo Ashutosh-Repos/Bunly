@@ -7,6 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
 import { prisma } from "../../lib/prisma";
@@ -101,7 +112,6 @@ export const searchRouter = router({
                 select: {
                     id: true,
                     title: true,
-                    thumbnailUrl: true,
                     videoCount: true,
                     updatedAt: true,
                     channels: {
@@ -112,13 +122,26 @@ export const searchRouter = router({
                             image: true,
                         },
                     },
+                    playlist_videos: {
+                        take: 1,
+                        orderBy: { position: "asc" },
+                        select: {
+                            videos: {
+                                select: { thumbnailUrl: true },
+                            },
+                        },
+                    },
                 },
             });
             if (playlistsList.length > limit) {
                 const nextItem = playlistsList.pop();
                 nextCursor = nextItem.id;
             }
-            fetchedPlaylists = playlistsList.map((p) => (Object.assign(Object.assign({}, p), { updatedAt: p.updatedAt.toISOString() })));
+            fetchedPlaylists = playlistsList.map((p) => {
+                var _a, _b, _c;
+                const { playlist_videos } = p, rest = __rest(p, ["playlist_videos"]);
+                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null });
+            });
             return {
                 channels: [],
                 playlists: fetchedPlaylists,
@@ -159,7 +182,6 @@ export const searchRouter = router({
                     select: {
                         id: true,
                         title: true,
-                        thumbnailUrl: true,
                         videoCount: true,
                         updatedAt: true,
                         channels: {
@@ -168,6 +190,15 @@ export const searchRouter = router({
                                 name: true,
                                 handle: true,
                                 image: true,
+                            },
+                        },
+                        playlist_videos: {
+                            take: 1,
+                            orderBy: { position: "asc" },
+                            select: {
+                                videos: {
+                                    select: { thumbnailUrl: true },
+                                },
                             },
                         },
                     },
@@ -186,7 +217,11 @@ export const searchRouter = router({
             else {
                 fetchedChannels = channelsList.map((c) => (Object.assign(Object.assign({}, c), { isSubscribed: false })));
             }
-            fetchedPlaylists = playlistsList.map((p) => (Object.assign(Object.assign({}, p), { updatedAt: p.updatedAt.toISOString() })));
+            fetchedPlaylists = playlistsList.map((p) => {
+                var _a, _b, _c;
+                const { playlist_videos } = p, rest = __rest(p, ["playlist_videos"]);
+                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null });
+            });
         }
         // Prisma text search fallback (Can be upgraded to Raw SQL tsvector proxy)
         const videos = yield prisma.videos.findMany({
@@ -219,16 +254,18 @@ export const searchRouter = router({
                 channelId: true,
                 channels: {
                     select: {
+                        id: true,
                         name: true,
                         handle: true,
                         image: true,
-                        subscriberCount: true,
+                        isVerified: true,
                     },
                 },
                 viewCount: true,
                 createdAt: true,
                 duration: true,
                 isShort: true,
+                hlsPlaylistUrl: true,
             },
         });
         if (videos.length > limit) {
@@ -239,24 +276,25 @@ export const searchRouter = router({
             channels: fetchedChannels,
             playlists: fetchedPlaylists,
             items: videos.map((v) => {
-                var _a, _b, _c, _d;
+                var _a, _b, _c, _d, _e;
                 return ({
                     id: v.id,
                     title: v.title,
                     thumbnailUrl: v.thumbnailUrl,
                     previewSprite: v.previewSprite || null,
                     channelId: v.channelId,
-                    channels: {
-                        id: v.channelId,
-                        name: ((_a = v.channels) === null || _a === void 0 ? void 0 : _a.name) || null,
-                        handle: ((_b = v.channels) === null || _b === void 0 ? void 0 : _b.handle) || null,
-                        image: ((_c = v.channels) === null || _c === void 0 ? void 0 : _c.image) || null,
-                        subscriberCount: ((_d = v.channels) === null || _d === void 0 ? void 0 : _d.subscriberCount) || 0,
+                    author: {
+                        id: ((_a = v.channels) === null || _a === void 0 ? void 0 : _a.id) || v.channelId,
+                        name: ((_b = v.channels) === null || _b === void 0 ? void 0 : _b.name) || "Unknown User",
+                        handle: ((_c = v.channels) === null || _c === void 0 ? void 0 : _c.handle) || "",
+                        image: ((_d = v.channels) === null || _d === void 0 ? void 0 : _d.image) || null,
+                        isVerified: ((_e = v.channels) === null || _e === void 0 ? void 0 : _e.isVerified) || false,
                     },
                     viewCount: v.viewCount,
                     createdAt: v.createdAt.toISOString(),
                     duration: v.duration,
                     isShort: v.isShort,
+                    hlsPlaylistUrl: v.hlsPlaylistUrl,
                 });
             }),
             nextCursor,

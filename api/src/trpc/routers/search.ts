@@ -294,16 +294,18 @@ export const searchRouter = router({
                     channelId: true,
                     channels: {
                         select: {
+                            id: true,
                             name: true,
                             handle: true,
                             image: true,
-                            subscriberCount: true,
+                            isVerified: true,
                         },
                     },
                     viewCount: true,
                     createdAt: true,
                     duration: true,
                     isShort: true,
+                    hlsPlaylistUrl: true,
                 },
             });
 
@@ -321,17 +323,18 @@ export const searchRouter = router({
                     thumbnailUrl: v.thumbnailUrl,
                     previewSprite: v.previewSprite || null,
                     channelId: v.channelId,
-                    channels: {
-                        id: v.channelId,
-                        name: v.channels?.name || null,
-                        handle: v.channels?.handle || null,
+                    author: {
+                        id: v.channels?.id || v.channelId,
+                        name: v.channels?.name || "Unknown User",
+                        handle: v.channels?.handle || "",
                         image: v.channels?.image || null,
-                        subscriberCount: v.channels?.subscriberCount || 0,
+                        isVerified: v.channels?.isVerified || false,
                     },
                     viewCount: v.viewCount,
                     createdAt: v.createdAt.toISOString(),
                     duration: v.duration,
                     isShort: v.isShort,
+                    hlsPlaylistUrl: v.hlsPlaylistUrl,
                 })),
                 nextCursor,
             };

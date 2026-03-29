@@ -1,0 +1,29 @@
+
+> frontend@0.1.0 lint /Users/ashutoshkumar/Desktop/Bunly/frontend
+> eslint
+
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/app/(app)/studio/[channelId]/comments/page.tsx
+  8:16  warning  'CardContent' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/app/(app)/studio/[channelId]/community/page.tsx
+  121:18  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/app/(app)/watch/[videoId]/_components/comment-item.tsx
+   6:34  warning  'AvatarImage' is defined but never used  @typescript-eslint/no-unused-vars
+  10:10  warning  'getMediaUrl' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/app/(app)/watch/[videoId]/watch-client.tsx
+  6:23  warning  'formatDuration' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/components/custom/save-to-playlist-modal.tsx
+  7:10  warning  'IconPlaylist' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ashutoshkumar/Desktop/Bunly/frontend/components/custom/video-grid.tsx
+  3:10  warning  'getMediaUrl' is defined but never used     @typescript-eslint/no-unused-vars
+  5:10  warning  'Avatar' is defined but never used          @typescript-eslint/no-unused-vars
+  5:18  warning  'AvatarFallback' is defined but never used  @typescript-eslint/no-unused-vars
+  5:34  warning  'AvatarImage' is defined but never used     @typescript-eslint/no-unused-vars
+
+✖ 10 problems (0 errors, 10 warnings)
+

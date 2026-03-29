@@ -91,16 +91,16 @@ export function ShortsClient() {
                         {/* Overlay Metadata */}
                         <div className="absolute bottom-0 left-0 right-16 p-4 pb-6 bg-linear-to-t from-black/80 via-black/40 to-transparent pointer-events-none">
                             <div className="flex items-center gap-2 mb-3 pointer-events-auto">
-                                <Link href={`/@${video.channels.handle}`}>
+                                <Link href={`/@${video.author.handle}`}>
                                     <Avatar className="h-9 w-9 border border-white/20">
-                                        <AvatarImage src={video.channels.image ? getMediaUrl(video.channels.image) : ""} />
+                                        <AvatarImage src={video.author.image ? getMediaUrl(video.author.image) : ""} />
                                         <AvatarFallback className="bg-white/20 text-white font-bold text-xs">
-                                            {video.channels.name?.charAt(0) || "C"}
+                                            {video.author.name?.charAt(0) || "C"}
                                         </AvatarFallback>
                                     </Avatar>
                                 </Link>
-                                <Link href={`/@${video.channels.handle}`} className="text-white font-bold text-[15px] tracking-tight drop-shadow-md hover:underline">
-                                    @{video.channels.handle}
+                                <Link href={`/@${video.author.handle}`} className="text-white font-bold text-[15px] tracking-tight drop-shadow-md hover:underline">
+                                    @{video.author.handle}
                                 </Link>
                                 <SubscribeButton channelId={video.channelId} />
                             </div>
@@ -117,10 +117,10 @@ export function ShortsClient() {
                                 navigator.clipboard.writeText(`${window.location.origin}/shorts/${video.id}`);
                                 toast.success("Link copied!");
                             }} />
-                            <Link href={`/@${video.channels.handle}`}>
+                            <Link href={`/@${video.author.handle}`}>
                                 <Avatar className="h-10 w-10 mt-3 border-[3px] border-white pointer-events-auto shadow-xl">
-                                    <AvatarImage src={video.channels.image ? getMediaUrl(video.channels.image) : ""} />
-                                    <AvatarFallback>{video.channels.name?.charAt(0)}</AvatarFallback>
+                                    <AvatarImage src={video.author.image ? getMediaUrl(video.author.image) : ""} />
+                                    <AvatarFallback>{video.author.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
                             </Link>
                         </div>

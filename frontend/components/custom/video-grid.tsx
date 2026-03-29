@@ -1,28 +1,16 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { getMediaUrl, formatDuration } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 import { IconVideo } from "@tabler/icons-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VideoHoverPreview } from "@/components/custom/video-hover-preview";
+import { AuthorAvatar, AuthorName } from "@/components/custom/author-display";
 
-interface Video {
-    id: string;
-    title: string;
-    thumbnailUrl: string | null;
-    previewSprite?: string | null;
-    duration: number | null;
-    viewCount: number;
-    publishedAt?: string | Date | null;
-    createdAt: string | Date;
-    channels?: {
-        name: string | null;
-        handle?: string | null;
-        image?: string | null;
-    } | null;
-}
+import type { RouterOutputs } from "@/lib/trpc-client";
+
+export type VideoGridVideo = RouterOutputs["feed"]["getHomeFeed"]["videos"][number];
 
 interface VideoGridProps {
-    videos?: Video[];
+    videos?: VideoGridVideo[];
     isLoading?: boolean;
 }
 
@@ -48,7 +36,7 @@ export function VideoGrid({ videos = [], isLoading = false }: VideoGridProps) {
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-8">
-            {videos.map((video) => {
+            {videos.map((video, index) => {
                 const displayDate = video.publishedAt ?? video.createdAt;
                 return (
                     <div key={video.id} className="flex flex-col gap-3 group cursor-pointer">
@@ -57,6 +45,7 @@ export function VideoGrid({ videos = [], isLoading = false }: VideoGridProps) {
                                 thumbnailUrl={video.thumbnailUrl}
                                 previewSprite={video.previewSprite}
                                 duration={video.duration}
+                                priority={index < 4}
                             >
                                 {/* No thumbnail fallback icon */}
                                 {!video.thumbnailUrl && !video.previewSprite && (
@@ -74,29 +63,12 @@ export function VideoGrid({ videos = [], isLoading = false }: VideoGridProps) {
                         </Link>
 
                         <div className="flex gap-3 px-1">
-                            {video.channels?.image ? (
-                                <Link href={video.channels?.handle ? `/@${video.channels.handle}` : '#'}>
-                                    <Avatar className="w-9 h-9 border shadow-sm shrink-0">
-                                        <AvatarImage src={getMediaUrl(video.channels.image)} />
-                                        <AvatarFallback className="text-[10px] font-bold">
-                                            {(video.channels.name || "C").slice(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                </Link>
-                            ) : (
-                                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                    <span className="text-primary text-[10px] font-bold">
-                                        {video.channels?.name?.slice(0, 2).toUpperCase() || "C"}
-                                    </span>
-                                </div>
-                            )}
+                            <AuthorAvatar author={video.author} className="w-9 h-9" />
                             <div className="flex flex-col min-w-0">
                                 <Link href={`/watch/${video.id}`} className="font-semibold text-[15px] leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                                     {video.title}
                                 </Link>
-                                <Link href={video.channels?.handle ? `/@${video.channels.handle}` : '#'} className="text-sm text-muted-foreground mt-1 line-clamp-1 hover:text-foreground transition-colors">
-                                    {video.channels?.name || "Unknown channel"}
-                                </Link>
+                                <AuthorName author={video.author} className="text-sm text-muted-foreground mt-1 line-clamp-1" />
                                 <span className="text-xs text-muted-foreground/80 mt-0.5">
                                     {video.viewCount.toLocaleString()} views • {formatDistanceToNow(new Date(displayDate), { addSuffix: true })}
                                 </span>

@@ -81,15 +81,12 @@ export const engagementRouter = router({
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const userId = ctx.session.user.id;
         const { videoId } = input;
-        yield verifyEngagementAccess(videoId, userId);
-        const currentReaction = yield getReaction(userId, videoId);
-        let action = "LIKE";
-        if (currentReaction === "LIKE") {
-            action = "REMOVE";
-        }
-        else {
-            action = "LIKE";
-        }
+        // Parallel: verify access + read current reaction (saves 1 DB round-trip)
+        const [, currentReaction] = yield Promise.all([
+            verifyEngagementAccess(videoId, userId),
+            getReaction(userId, videoId),
+        ]);
+        const action = currentReaction === "LIKE" ? "REMOVE" : "LIKE";
         yield StreamService.addReaction(userId, videoId, action);
         return { status: action };
     })),
@@ -101,15 +98,12 @@ export const engagementRouter = router({
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const userId = ctx.session.user.id;
         const { videoId } = input;
-        yield verifyEngagementAccess(videoId, userId);
-        const currentReaction = yield getReaction(userId, videoId);
-        let action = "DISLIKE";
-        if (currentReaction === "DISLIKE") {
-            action = "REMOVE";
-        }
-        else {
-            action = "DISLIKE";
-        }
+        // Parallel: verify access + read current reaction
+        const [, currentReaction] = yield Promise.all([
+            verifyEngagementAccess(videoId, userId),
+            getReaction(userId, videoId),
+        ]);
+        const action = currentReaction === "DISLIKE" ? "REMOVE" : "DISLIKE";
         yield StreamService.addReaction(userId, videoId, action);
         return { status: action };
     })),

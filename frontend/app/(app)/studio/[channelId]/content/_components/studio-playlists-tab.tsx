@@ -2,75 +2,124 @@
 
 import { trpc } from "@/lib/trpc-client";
 import { format } from "date-fns";
-import { 
-    IconPlaylist, 
-    IconTrash, 
-    IconEdit, 
+import {
+    IconPlaylist,
+    IconTrash,
+    IconEdit,
     IconDotsVertical,
     IconLoader2,
     IconEye,
-    IconEyeOff
+    IconEyeOff,
+    IconPlus,
+    IconList,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Image from "next/image";
 import { getMediaUrl } from "@/lib/utils";
 import Link from "next/link";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { useParams } from "next/navigation";
 
-export function StudioPlaylistsTab({ channelId, search }: { channelId: string, search: string }) {
+type Visibility = "PUBLIC" | "PRIVATE" | "UNLISTED";
+
+export function StudioPlaylistsTab({ channelId, search }: { channelId: string; search: string }) {
     const utils = trpc.useUtils();
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [editingPlaylist, setEditingPlaylist] = useState<{ id: string, title: string, visibility: "PUBLIC" | "PRIVATE" } | null>(null);
+    const params = useParams();
+    const studioChannelId = params.channelId as string;
 
-    const { data: playlistsData, isLoading } = trpc.playlist.getPublicChannelPlaylists.useQuery(
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [editingPlaylist, setEditingPlaylist] = useState<{
+        id: string;
+        title: string;
+        description: string;
+        visibility: Visibility;
+    } | null>(null);
+
+    // Create Playlist form state
+    const [newTitle, setNewTitle] = useState("");
+    const [newDescription, setNewDescription] = useState("");
+    const [newVisibility, setNewVisibility] = useState<Visibility>("PUBLIC");
+
+    const { data: playlistsData, isLoading } = trpc.playlist.getChannelPlaylists.useQuery(
         { channelId },
         { enabled: !!channelId }
     );
 
-    // Filter by search client-side since this lists all
-    const playlists = (playlistsData?.playlists || []).filter(p => 
+    const playlists = (playlistsData?.playlists || []).filter((p) =>
         search ? p.title.toLowerCase().includes(search.toLowerCase()) : true
     );
 
-    const updateMutation = trpc.playlist.updatePlaylistDetails.useMutation({
+    const createMutation = trpc.playlist.createPlaylist.useMutation({
+        onSuccess: () => {
+            toast.success("Playlist created!");
+            utils.playlist.getPublicChannelPlaylists.invalidate({ channelId });
+            utils.playlist.getChannelPlaylists.invalidate({ channelId });
+            setCreateModalOpen(false);
+            setNewTitle("");
+            setNewDescription("");
+            setNewVisibility("PUBLIC");
+        },
+        onError: (err) => toast.error(err.message),
+    });
+
+    const updateMutation = trpc.playlist.updatePlaylist.useMutation({
         onSuccess: () => {
             toast.success("Playlist updated");
             utils.playlist.getPublicChannelPlaylists.invalidate({ channelId });
+            utils.playlist.getChannelPlaylists.invalidate({ channelId });
             setEditModalOpen(false);
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err) => toast.error(err.message),
     });
 
     const deleteMutation = trpc.playlist.deletePlaylist.useMutation({
         onSuccess: () => {
             toast.success("Playlist deleted");
             utils.playlist.getPublicChannelPlaylists.invalidate({ channelId });
+            utils.playlist.getChannelPlaylists.invalidate({ channelId });
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err) => toast.error(err.message),
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleEdit = (e: React.MouseEvent, p: any) => {
+    const handleEdit = (e: React.MouseEvent, p: { id: string; title: string; description?: string | null; visibility: string }) => {
         e.stopPropagation();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setEditingPlaylist({ id: p.id, title: p.title, visibility: p.visibility as any });
+        setEditingPlaylist({ 
+            id: p.id, 
+            title: p.title, 
+            description: p.description || "",
+            visibility: p.visibility as Visibility 
+        });
         setEditModalOpen(true);
     };
 
@@ -83,15 +132,34 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
 
     const submitEdit = () => {
         if (!editingPlaylist || !editingPlaylist.title.trim()) return;
-        updateMutation.mutate({ 
-            playlistId: editingPlaylist.id, 
+        updateMutation.mutate({
+            playlistId: editingPlaylist.id,
             title: editingPlaylist.title,
-            visibility: editingPlaylist.visibility
+            description: editingPlaylist.description,
+            visibility: editingPlaylist.visibility,
+            channelId,
+        });
+    };
+
+    const submitCreate = () => {
+        if (!newTitle.trim()) return;
+        createMutation.mutate({
+            title: newTitle.trim(),
+            description: newDescription.trim() || undefined,
+            visibility: newVisibility,
+            channelId,
         });
     };
 
     return (
         <>
+            {/* Create Playlist Button */}
+            <div className="flex justify-end mb-4">
+                <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
+                    <IconPlus size={16} /> New playlist
+                </Button>
+            </div>
+
             <div className="border rounded-lg overflow-hidden bg-card">
                 <Table>
                     <TableHeader className="bg-muted/50">
@@ -117,22 +185,30 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                                     <div className="flex flex-col items-center justify-center gap-2">
                                         <IconPlaylist size={32} className="opacity-20 mb-2" />
                                         <p>No playlists found</p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCreateModalOpen(true)}
+                                            className="mt-2"
+                                        >
+                                            Create your first playlist
+                                        </Button>
                                     </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             playlists.map((playlist) => (
-                                <TableRow 
-                                    key={playlist.id} 
+                                <TableRow
+                                    key={playlist.id}
                                     className="group cursor-default hover:bg-muted/30 transition-colors"
                                 >
                                     <TableCell className="font-medium">
                                         <div className="flex gap-4 items-center">
                                             <div className="relative aspect-video w-28 bg-muted rounded overflow-hidden shrink-0 flex items-center justify-center">
                                                 {playlist.firstVideoThumbnail ? (
-                                                    <Image 
-                                                        src={getMediaUrl(playlist.firstVideoThumbnail)} 
-                                                        alt={playlist.title} 
+                                                    <Image
+                                                        src={getMediaUrl(playlist.firstVideoThumbnail)}
+                                                        alt={playlist.title}
                                                         fill
                                                         className="object-cover"
                                                         sizes="(max-width: 768px) 112px, 112px"
@@ -148,15 +224,24 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                                                 </div>
                                             </div>
                                             <div className="flex flex-col overflow-hidden">
-                                                <span className="truncate block font-semibold text-sm mb-0.5" title={playlist.title}>
+                                                <span
+                                                    className="truncate block font-semibold text-sm mb-0.5"
+                                                    title={playlist.title}
+                                                >
                                                     {playlist.title}
                                                 </span>
                                             </div>
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <span className={`text-xs capitalize font-medium flex items-center gap-1 ${playlist.visibility === "PUBLIC" ? "text-green-500" : "text-muted-foreground"}`}>
-                                            {playlist.visibility === "PUBLIC" ? <IconEye size={14} /> : <IconEyeOff size={14} />}
+                                        <span
+                                            className={`text-xs capitalize font-medium flex items-center gap-1 ${playlist.visibility === "PUBLIC" ? "text-green-500" : "text-muted-foreground"}`}
+                                        >
+                                            {playlist.visibility === "PUBLIC" ? (
+                                                <IconEye size={14} />
+                                            ) : (
+                                                <IconEyeOff size={14} />
+                                            )}
                                             {playlist.visibility.toLowerCase()}
                                         </span>
                                     </TableCell>
@@ -171,14 +256,29 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                                     <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                                >
                                                     <span className="sr-only">Open menu</span>
                                                     <IconDotsVertical className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-48">
                                                 <DropdownMenuItem asChild>
-                                                    <Link href={`/playlist/${playlist.id}`} className="cursor-pointer">
+                                                    <Link
+                                                        href={`/studio/${studioChannelId}/content/playlists/${playlist.id}`}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        <IconList className="mr-2 h-4 w-4" />
+                                                        Manage videos
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem asChild>
+                                                    <Link
+                                                        href={`/playlist/${playlist.id}`}
+                                                        className="cursor-pointer"
+                                                    >
                                                         <IconPlaylist className="mr-2 h-4 w-4" />
                                                         View on Bunly
                                                     </Link>
@@ -187,7 +287,7 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                                                     <IconEdit className="mr-2 h-4 w-4" />
                                                     Edit title & visibility
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem 
+                                                <DropdownMenuItem
                                                     className="text-destructive focus:text-destructive"
                                                     onClick={(e) => handleDelete(e, playlist.id)}
                                                     disabled={deleteMutation.isPending}
@@ -205,6 +305,7 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                 </Table>
             </div>
 
+            {/* ─── Edit Playlist Dialog ─── */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -214,29 +315,118 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string, s
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Title</label>
-                                <Input 
+                                <Input
                                     value={editingPlaylist.title}
-                                    onChange={e => setEditingPlaylist({ ...editingPlaylist, title: e.target.value })}
+                                    onChange={(e) =>
+                                        setEditingPlaylist({ ...editingPlaylist, title: e.target.value })
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Description</label>
+                                <Textarea
+                                    value={editingPlaylist.description}
+                                    onChange={(e) =>
+                                        setEditingPlaylist({ ...editingPlaylist, description: e.target.value })
+                                    }
+                                    placeholder="Enter playlist description..."
+                                    className="resize-none min-h-[100px]"
+                                    maxLength={5000}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Visibility</label>
-                                <select 
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                                <Select
                                     value={editingPlaylist.visibility}
-                                    onChange={e => setEditingPlaylist({ ...editingPlaylist, visibility: e.target.value as "PUBLIC" | "PRIVATE" })}
+                                    onValueChange={(v) =>
+                                        setEditingPlaylist({
+                                            ...editingPlaylist,
+                                            visibility: v as Visibility,
+                                        })
+                                    }
                                 >
-                                    <option value="PUBLIC">Public</option>
-                                    <option value="PRIVATE">Private</option>
-                                </select>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="PUBLIC">Public</SelectItem>
+                                        <SelectItem value="PRIVATE">Private</SelectItem>
+                                        <SelectItem value="UNLISTED">Unlisted</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex justify-end pt-4">
-                                <Button disabled={updateMutation.isPending || !editingPlaylist.title.trim()} onClick={submitEdit}>
+                                <Button
+                                    disabled={updateMutation.isPending || !editingPlaylist.title.trim()}
+                                    onClick={submitEdit}
+                                >
                                     Save Changes
                                 </Button>
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ─── Create Playlist Dialog ─── */}
+            <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Playlist</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Title <span className="text-destructive">*</span>
+                            </label>
+                            <Input
+                                placeholder="My awesome playlist"
+                                value={newTitle}
+                                onChange={(e) => setNewTitle(e.target.value)}
+                                maxLength={150}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Description</label>
+                            <Textarea
+                                placeholder="What's this playlist about?"
+                                className="resize-none min-h-[80px]"
+                                value={newDescription}
+                                onChange={(e) => setNewDescription(e.target.value)}
+                                maxLength={5000}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Visibility</label>
+                            <Select
+                                value={newVisibility}
+                                onValueChange={(v) => setNewVisibility(v as Visibility)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PUBLIC">Public</SelectItem>
+                                    <SelectItem value="PRIVATE">Private</SelectItem>
+                                    <SelectItem value="UNLISTED">Unlisted</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex justify-end pt-4">
+                            <Button
+                                disabled={createMutation.isPending || !newTitle.trim()}
+                                onClick={submitCreate}
+                            >
+                                {createMutation.isPending ? (
+                                    <>
+                                        <IconLoader2 className="animate-spin mr-2 h-4 w-4" /> Creating...
+                                    </>
+                                ) : (
+                                    "Create Playlist"
+                                )}
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

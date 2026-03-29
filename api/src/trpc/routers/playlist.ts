@@ -25,11 +25,11 @@ const playlistSchema = z.object({
 
 export const playlistRouter = router({
     createPlaylist: protectedProcedure
-        .input(playlistSchema.omit({ visibility: true }))
+        .input(playlistSchema)
         .mutation(async ({ ctx, input }) => {
-            const { title, description, channelId } = input;
+            const { title, description, channelId, visibility } = input;
             const userId = ctx.session.user.id;
-            let finalVisibility: "PUBLIC" | "PRIVATE" | "UNLISTED" = "UNLISTED";
+            let finalVisibility = visibility;
 
             // If channelId is provided, verify ownership
             if (channelId) {
@@ -161,7 +161,7 @@ export const playlistRouter = router({
             const userId = ctx.session?.user?.id ?? null;
 
             const playlist = await prisma.playlists.findUnique({
-                where: { id: playlistId },
+                where: { id: playlistId, deletedAt: null },
                 include: {
                     user: {
                         select: {
@@ -322,7 +322,7 @@ export const playlistRouter = router({
             const { playlistId, limit, cursor } = input;
 
             const playlist = await prisma.playlists.findUnique({
-                where: { id: playlistId },
+                where: { id: playlistId, deletedAt: null },
                 select: { id: true, visibility: true, userId: true },
             });
 
@@ -371,6 +371,7 @@ export const playlistRouter = router({
                                     handle: true,
                                     image: true,
                                     userId: true,
+                                    isVerified: true,
                                 },
                             },
                         },
@@ -409,11 +410,12 @@ export const playlistRouter = router({
                 return {
                     ...restVideo,
                     channelId: channels?.id || "",
-                    channels: {
+                    author: {
                         id: channels?.id || "",
                         name: channels?.name || "",
                         handle: channels?.handle || "",
                         image: channels?.image || null,
+                        isVerified: channels?.isVerified || false,
                     },
                     position: item.position,
                     addedAt: item.addedAt,
@@ -594,7 +596,7 @@ export const playlistRouter = router({
                 where: {
                     channelId,
                     deletedAt: null,
-                    visibility: { in: ["PUBLIC", "UNLISTED"] },
+                    visibility: "PUBLIC",
                 },
                 orderBy: { updatedAt: "desc" },
                 include: {

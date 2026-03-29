@@ -3,17 +3,18 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { trpc } from "@/lib/trpc-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { IconThumbUp, IconThumbDown, IconMessageCircle, IconPinFilled } from "@tabler/icons-react";
-import { getMediaUrl } from "@/lib/utils";
-import Link from "next/link";
 import { toast } from "sonner";
+import { AuthorAvatar, AuthorName } from "@/components/custom/author-display";
 
-// Assuming type based on CommentService
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function CommentItem({ comment, videoId, depth = 0, isVideoOwner = false }: { comment: any; videoId: string; depth?: number; isVideoOwner?: boolean }) {
+import type { RouterOutputs } from "@/lib/trpc-client";
+
+type CommentItemData = RouterOutputs["comment"]["list"]["items"][number];
+
+export function CommentItem({ comment, videoId, depth = 0, isVideoOwner = false }: { comment: CommentItemData; videoId: string; depth?: number; isVideoOwner?: boolean }) {
     const utils = trpc.useUtils();
     const [isReplying, setIsReplying] = useState(false);
     const [replyText, setReplyText] = useState("");
@@ -74,27 +75,15 @@ export function CommentItem({ comment, videoId, depth = 0, isVideoOwner = false 
         });
     };
 
-    const channel = comment.user.channels?.[0];
-    const authorName = channel?.name || comment.user.name || "User";
-    const authorHandle = channel?.handle ? `@${channel.handle}` : "";
-    const authorImage = channel?.image || comment.user.image;
-
     const allReplies = repliesData?.pages.flatMap((p) => p.items) || [];
 
     return (
         <div className={`flex gap-3 mb-5 ${depth > 0 ? "mt-4" : ""}`}>
-            <Link href={channel?.handle ? `/@${channel.handle}` : "#"}>
-                <Avatar className={depth > 0 ? "w-8 h-8" : "w-10 h-10"}>
-                    <AvatarImage src={authorImage ? getMediaUrl(authorImage) : undefined} />
-                    <AvatarFallback>{authorName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-            </Link>
+            <AuthorAvatar author={comment.author} className={depth > 0 ? "w-8 h-8" : "w-10 h-10 shadow-sm"} />
 
             <div className="flex flex-col w-full min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                    <Link href={channel?.handle ? `/@${channel.handle}` : "#"} className="font-semibold text-[13px] hover:underline decoration-foreground/30">
-                        {authorHandle || authorName}
-                    </Link>
+                    <AuthorName author={comment.author} showHandle={true} className="font-semibold text-[13px]" />
                     <span className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
                     </span>
@@ -172,8 +161,7 @@ export function CommentItem({ comment, videoId, depth = 0, isVideoOwner = false 
                 {/* Recursive Replies Rendering */}
                 {showReplies && allReplies.length > 0 && (
                     <div className="mt-2">
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        {allReplies.map((reply: any) => (
+                        {allReplies.map((reply: CommentItemData) => (
                             <CommentItem key={reply.id} comment={reply} videoId={videoId} depth={depth + 1} isVideoOwner={isVideoOwner} />
                         ))}
                         {hasNextPage && (

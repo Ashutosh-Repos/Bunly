@@ -27,9 +27,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useUpload } from "@/components/providers/upload-provider";
 import { useRouter } from "next/navigation";
-import { IconDotsVertical, IconTrash, IconEdit, IconLoader2 } from "@tabler/icons-react";
+import { IconDotsVertical, IconTrash, IconEdit, IconLoader2, IconPlaylist } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { StudioPlaylistsTab } from "./_components/studio-playlists-tab";
+import { SaveToPlaylistModal } from "@/components/custom/save-to-playlist-modal";
 
 export default function StudioContentPage() {
     const params = useParams();
@@ -252,6 +253,14 @@ export default function StudioContentPage() {
                                                 }}>
                                                     <IconEdit size={16} className="mr-2" /> Edit Video
                                                 </DropdownMenuItem>
+                                                <SaveToPlaylistModal 
+                                                    videoId={video.id} 
+                                                    trigger={
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                            <IconPlaylist size={16} className="mr-2" /> Add to playlist
+                                                        </DropdownMenuItem>
+                                                    }
+                                                />
                                                 <DropdownMenuItem 
                                                     className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
                                                     onClick={(e) => handleDelete(e, video.id)}

@@ -51,19 +51,21 @@ function buildWsUrl(videoId: string): string {
 }
 
 export async function updateChannelStats(channelId: string) {
-    // 1. Count all videos that are not soft-deleted (including unlisted/private/scheduled)
+    // 1. Count ONLY public videos
     const videoCount = await prisma.videos.count({
         where: {
             channelId,
             deletedAt: null,
+            visibility: "PUBLIC",
         },
     });
 
-    // 2. Sum total views for all videos (unlisted links still accrue views)
+    // 2. Sum total views for ONLY public videos
     const aggregate = await prisma.videos.aggregate({
         where: {
             channelId,
             deletedAt: null,
+            visibility: "PUBLIC",
         },
         _sum: {
             viewCount: true,
@@ -1142,10 +1144,11 @@ export const videoRouter = router({
         )
         .mutation(async ({ ctx, input }) => {
             const { video } = ctx;
-            const { tags, chapters, ...otherData } = input;
+            const { videoId, tags, chapters, ...otherData } = input;
 
             // Sanitize scheduling: clear scheduledAt if not visibility SCHEDULED
-            if (otherData.visibility && otherData.visibility !== "SCHEDULED") {
+            const finalVisibility = otherData.visibility ?? video.visibility;
+            if (finalVisibility !== "SCHEDULED") {
                 otherData.scheduledAt = null;
             }
 
@@ -1433,8 +1436,21 @@ export const videoRouter = router({
                 };
             }
 
+            const { channels, ...restVideo } = video;
+            const author = channels ? {
+                id: channels.id,
+                name: channels.name || "Unknown Channel",
+                handle: channels.handle || "",
+                image: channels.image || null,
+                subscriberCount: channels.subscriberCount || 0,
+                // Include userId only if needed by frontend (currently watch-client doesn't need it for author, but keep it if other logic depends?)
+                // Actually watch-client checks video.channels?.userId to see if it's the owner? No, that's done server-side.
+                // Wait, watch owner logic is server-side in `isOwner` check.
+            } : null;
+
             return {
-                ...video,
+                ...restVideo,
+                author,
                 history,
                 engagement,
             };

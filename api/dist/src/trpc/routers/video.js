@@ -61,18 +61,20 @@ function buildWsUrl(videoId) {
 export function updateChannelStats(channelId) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
-        // 1. Count all videos that are not soft-deleted (including unlisted/private/scheduled)
+        // 1. Count ONLY public videos
         const videoCount = yield prisma.videos.count({
             where: {
                 channelId,
                 deletedAt: null,
+                visibility: "PUBLIC",
             },
         });
-        // 2. Sum total views for all videos (unlisted links still accrue views)
+        // 2. Sum total views for ONLY public videos
         const aggregate = yield prisma.videos.aggregate({
             where: {
                 channelId,
                 deletedAt: null,
+                visibility: "PUBLIC",
             },
             _sum: {
                 viewCount: true,
@@ -876,10 +878,12 @@ export const videoRouter = router({
         path: ["scheduledAt"],
     }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        var _b;
         const { video } = ctx;
-        const { tags, chapters } = input, otherData = __rest(input, ["tags", "chapters"]);
+        const { videoId, tags, chapters } = input, otherData = __rest(input, ["videoId", "tags", "chapters"]);
         // Sanitize scheduling: clear scheduledAt if not visibility SCHEDULED
-        if (otherData.visibility && otherData.visibility !== "SCHEDULED") {
+        const finalVisibility = (_b = otherData.visibility) !== null && _b !== void 0 ? _b : video.visibility;
+        if (finalVisibility !== "SCHEDULED") {
             otherData.scheduledAt = null;
         }
         // Calculate publishedAt: set if transitioning to PUBLIC and not already set
@@ -1066,8 +1070,8 @@ export const videoRouter = router({
                 },
             });
             history = yield StreamService.getMergedHistory(userId, videoId, dbHistory);
-            // Check if user liked/disliked/subscribed
-            const [cachedReaction, dbReaction, sub] = yield Promise.all([
+            // Check if user liked/disliked/subscribed (Hybrid Read for all)
+            const [cachedReaction, dbReaction, dbSub, cachedSub] = yield Promise.all([
                 StreamService.getUserReaction(userId, videoId),
                 prisma.video_reactions.findUnique({
                     where: { videoId_userId: { userId, videoId } },
@@ -1080,16 +1084,33 @@ export const videoRouter = router({
                         },
                     },
                 }),
+                StreamService.getSubscriptionStatus(userId, video.channelId),
             ]);
             const rawReaction = cachedReaction || (dbReaction === null || dbReaction === void 0 ? void 0 : dbReaction.type);
             const reactionType = rawReaction === "REMOVE" ? null : rawReaction;
+            // Hybrid: prefer cache (write-behind), fall back to DB
+            const isSubscribed = cachedSub !== null
+                ? cachedSub === "SUBSCRIBE"
+                : !!dbSub;
             engagement = {
                 liked: reactionType === "LIKE",
                 disliked: reactionType === "DISLIKE",
-                subscribed: !!sub,
+                subscribed: isSubscribed,
             };
         }
-        return Object.assign(Object.assign({}, video), { history,
+        const { channels } = video, restVideo = __rest(video, ["channels"]);
+        const author = channels ? {
+            id: channels.id,
+            name: channels.name || "Unknown Channel",
+            handle: channels.handle || "",
+            image: channels.image || null,
+            subscriberCount: channels.subscriberCount || 0,
+            // Include userId only if needed by frontend (currently watch-client doesn't need it for author, but keep it if other logic depends?)
+            // Actually watch-client checks video.channels?.userId to see if it's the owner? No, that's done server-side.
+            // Wait, watch owner logic is server-side in `isOwner` check.
+        } : null;
+        return Object.assign(Object.assign({}, restVideo), { author,
+            history,
             engagement });
     })),
     /**

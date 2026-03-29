@@ -32,6 +32,7 @@ export const uploadRouter = router({
                     "channel-banner",
                     "thumbnail",
                     "playlist-thumbnail",
+                    "community-post",
                 ]),
             })
         )

@@ -13,6 +13,35 @@ import { NotificationService } from "./NotificationService";
 import { TRPCError } from "@trpc/server";
 export class CommentService {
     /**
+     * Centralized mapper for Comment -> CommentItem
+     */
+    static mapToCommentItem(c) {
+        var _a, _b;
+        const channel = (_b = (_a = c.user) === null || _a === void 0 ? void 0 : _a.channels) === null || _b === void 0 ? void 0 : _b[0];
+        return {
+            id: c.id,
+            videoId: c.videoId,
+            userId: c.userId,
+            parentId: c.parentId,
+            content: c.content,
+            likeCount: c.likeCount,
+            dislikeCount: c.dislikeCount,
+            replyCount: c.replyCount,
+            isEdited: c.isEdited,
+            isPinned: c.isPinned,
+            isHearted: c.isHearted || false,
+            createdAt: c.createdAt,
+            author: {
+                id: (channel === null || channel === void 0 ? void 0 : channel.id) || c.user.id,
+                name: (channel === null || channel === void 0 ? void 0 : channel.name) || c.user.name || "Unknown User",
+                handle: (channel === null || channel === void 0 ? void 0 : channel.handle) || "",
+                image: (channel === null || channel === void 0 ? void 0 : channel.image) || c.user.image || null,
+                isVerified: (channel === null || channel === void 0 ? void 0 : channel.isVerified) || false,
+            },
+            videos: c.videos
+        };
+    }
+    /**
      * Helper to verify if a user has read/write access to a video's comments.
      */
     static verifyVideoAccess(videoId, userId) {
@@ -109,6 +138,7 @@ export class CommentService {
                             image: true,
                             channels: {
                                 select: {
+                                    id: true,
                                     handle: true,
                                     name: true,
                                     image: true,
@@ -126,8 +156,9 @@ export class CommentService {
                 const nextItem = comments.pop();
                 nextCursor = (nextItem === null || nextItem === void 0 ? void 0 : nextItem.id) || null;
             }
+            const mappedComments = comments.map((c) => this.mapToCommentItem(c));
             const result = {
-                items: comments,
+                items: mappedComments,
                 nextCursor,
             };
             // 5. Cache First Page (Async) -> CACHE RAW ITEMS ONLY (Shared)
@@ -190,6 +221,7 @@ export class CommentService {
                             image: true,
                             channels: {
                                 select: {
+                                    id: true,
                                     handle: true,
                                     name: true,
                                     image: true,
@@ -206,8 +238,9 @@ export class CommentService {
                 const nextItem = comments.pop();
                 nextCursor = (nextItem === null || nextItem === void 0 ? void 0 : nextItem.id) || null;
             }
+            const mappedComments = comments.map((c) => this.mapToCommentItem(c));
             const result = {
-                items: comments,
+                items: mappedComments,
                 nextCursor,
             };
             // Cache First Page (Async) - Short TTL (e.g. 60s) as replies change fast in viral threads
@@ -265,6 +298,7 @@ export class CommentService {
                             image: true,
                             channels: {
                                 select: {
+                                    id: true,
                                     handle: true,
                                     name: true,
                                     image: true,
@@ -610,6 +644,61 @@ export class CommentService {
         });
     }
     /**
+     * Get all comments for a channel (Studio Inbox).
+     */
+    static getChannelComments(channelId_1) {
+        return __awaiter(this, arguments, void 0, function* (channelId, cursor = null, limit = 20, userId) {
+            const items = yield prisma.comments.findMany({
+                where: {
+                    videos: { channelId },
+                    status: "VISIBLE",
+                    deletedAt: null,
+                },
+                take: limit + 1,
+                cursor: cursor ? { id: cursor } : undefined,
+                skip: cursor ? 1 : 0,
+                orderBy: { createdAt: "desc" },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            image: true,
+                            channels: {
+                                select: {
+                                    id: true,
+                                    handle: true,
+                                    name: true,
+                                    image: true,
+                                    isVerified: true,
+                                },
+                                take: 1,
+                            },
+                        },
+                    },
+                    videos: {
+                        select: { id: true, title: true, thumbnailUrl: true },
+                    },
+                },
+            });
+            let nextCursor = null;
+            if (items.length > limit) {
+                const nextItem = items.pop();
+                nextCursor = (nextItem === null || nextItem === void 0 ? void 0 : nextItem.id) || null;
+            }
+            const mappedItems = items.map((c) => this.mapToCommentItem(c));
+            // Hydrate Reactions if userId is provided
+            if (userId && mappedItems.length > 0) {
+                const commentIds = mappedItems.map((c) => c.id);
+                const reactions = yield this.fetchUserReactionsBatch(userId, commentIds);
+                mappedItems.forEach((c) => {
+                    c.userReaction = reactions[c.id] || null;
+                });
+            }
+            return { items: mappedItems, nextCursor };
+        });
+    }
+    /**
      * Get a single comment by ID, fully hydrated with user and reaction state.
      * Used for highlighting specific linked comments (e.g. from notifications).
      */
@@ -625,6 +714,7 @@ export class CommentService {
                             image: true,
                             channels: {
                                 select: {
+                                    id: true,
                                     handle: true,
                                     name: true,
                                     image: true,
@@ -638,11 +728,11 @@ export class CommentService {
             });
             if (!comment)
                 return null;
-            let userReaction = null;
+            const mapped = this.mapToCommentItem(comment);
             if (userId) {
-                userReaction = yield this.getUserReaction(userId, commentId);
+                mapped.userReaction = yield this.getUserReaction(userId, commentId);
             }
-            return Object.assign(Object.assign({}, comment), { userReaction });
+            return mapped;
         });
     }
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
-import { CommentService, CommentSort } from "../../services/CommentService";
+import { CommentService, CommentSort, type CommentListResult } from "../../services/CommentService";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 
@@ -18,13 +18,13 @@ export const commentRouter = router({
             const { videoId, sortBy, cursor, limit } = input;
             const userId = ctx.session?.user?.id ?? "";
 
-            return CommentService.getComments(
+            return (await CommentService.getComments(
                 videoId,
                 sortBy as CommentSort,
                 cursor,
                 limit,
                 userId,
-            );
+            )) as CommentListResult;
         }),
 
     getById: protectedProcedure
@@ -54,7 +54,7 @@ export const commentRouter = router({
         .query(async ({ input, ctx }) => {
             const { parentId, cursor, limit } = input;
             const userId = ctx.session.user.id;
-            return CommentService.getReplies(parentId, cursor, limit, userId);
+            return (await CommentService.getReplies(parentId, cursor, limit, userId)) as CommentListResult;
         }),
 
     create: protectedProcedure
@@ -227,36 +227,11 @@ export const commentRouter = router({
                 throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
             }
 
-            const items = await prisma.comments.findMany({
-                where: {
-                    videos: { channelId },
-                    status: "VISIBLE",
-                    deletedAt: null
-                },
-                take: limit + 1,
-                cursor: cursor ? { id: cursor } : undefined,
-                skip: cursor ? 1 : 0,
-                orderBy: { createdAt: "desc" },
-                include: {
-                    user: {
-                        select: {
-                            name: true,
-                            image: true,
-                            channels: { select: { handle: true, name: true, image: true }, take: 1 }
-                        }
-                    },
-                    videos: {
-                        select: { id: true, title: true, thumbnailUrl: true }
-                    }
-                }
-            });
-
-            let nextCursor: string | undefined = undefined;
-            if (items.length > limit) {
-                const nextItem = items.pop();
-                nextCursor = nextItem?.id;
-            }
-
-            return { items, nextCursor };
+            return await CommentService.getChannelComments(
+                channelId,
+                cursor ?? null,
+                limit,
+                ctx.session.user.id
+            );
         }),
 });

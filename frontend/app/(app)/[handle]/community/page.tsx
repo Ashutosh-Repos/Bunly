@@ -16,6 +16,7 @@ import { toast } from "sonner";
 export default function ChannelCommunityPage({ params }: { params: Promise<{ handle: string }> }) {
     const { handle } = use(params);
     const cleanHandle = decodeURIComponent(handle).slice(1);
+    console.log(handle);
 
     const channelData = trpc.channel.getChannelByHandle.useQuery({ handle: cleanHandle }).data;
     const channel = channelData?.channel;
@@ -126,7 +127,7 @@ function CommunityPostCard({ post, channel, onLike }: { post: Post, channel: Cha
                         <div className="mt-4 rounded-xl overflow-hidden border border-border/50 max-h-[500px] flex items-center justify-center bg-muted/30">
                             {/* Assuming imageUrls[0] is an image url */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={getMediaUrl(post.imageUrls[0])} alt="Post attachment" className="object-contain max-h-[500px] w-full" />
+                            <img src={getMediaUrl(post.imageUrls[0])} alt="Post attachment" className="object-contain max-h-[500px] w-full" style={{ height: "auto" }} />
                         </div>
                     )}
 
