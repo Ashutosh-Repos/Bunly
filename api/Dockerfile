@@ -1,5 +1,5 @@
 # ─── Build Stage ──────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22.14.0-alpine AS builder
 
 WORKDIR /app
 
@@ -10,10 +10,11 @@ COPY pnpm-lock.yaml package.json ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+RUN pnpm exec prisma generate
 RUN pnpm build
 
 # ─── Runtime Stage ────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22.14.0-alpine AS runner
 
 WORKDIR /app
 
@@ -21,17 +22,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
 
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
-
 # Only production dependencies
-COPY pnpm-lock.yaml package.json ./
-RUN pnpm install --prod --frozen-lockfile
-
-# Compiled code from builder
+# We copy node_modules from builder to avoid re-installing and ensuring we have the generated Prisma client
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-# Prisma generated client
 COPY --from=builder /app/prisma ./prisma
-RUN pnpm exec prisma generate
 
 # Healthcheck for orchestrators
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
