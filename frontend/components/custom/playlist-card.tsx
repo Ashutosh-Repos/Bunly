@@ -4,12 +4,14 @@ import { Card } from "@/components/ui/card";
 import { IconPlaylist } from "@tabler/icons-react";
 import { getMediaUrl } from "@/lib/utils";
 
+import { AuthorName, type AuthorDTO } from "./author-display";
+
 interface PlaylistCardProps {
     id: string;
     title: string;
     videoCount: number;
     firstVideoThumbnail?: string | null;
-    authorName?: string;
+    author?: AuthorDTO | null;
 }
 
 export function PlaylistCard({
@@ -17,7 +19,7 @@ export function PlaylistCard({
     title,
     videoCount,
     firstVideoThumbnail,
-    authorName,
+    author,
 }: PlaylistCardProps) {
     return (
         <Link href={`/playlist/${id}`} className="group cursor-pointer block h-full">
@@ -44,10 +46,11 @@ export function PlaylistCard({
                     <h3 className="font-semibold text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
                         {title}
                     </h3>
-                    {authorName && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {authorName}
-                        </p>
+                    {author && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
+                            <span>By</span>
+                            <AuthorName author={author} className="inline-flex hover:no-underline" />
+                        </div>
                     )}
                 </div>
             </Card>

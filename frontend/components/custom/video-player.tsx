@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import Hls from "hls.js";
+import type Hls from "hls.js";
 import { getMediaUrl, formatDuration } from "@/lib/utils";
 import {
     IconPlayerPlayFilled,
@@ -164,50 +164,7 @@ export function VideoPlayer({
         // FIX: Apply muted state before attempting autoplay (browser policy compliance)
         if (autoPlay) video.muted = true;
 
-        if (Hls.isSupported()) {
-            const hls = new Hls({
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-            });
-            hlsRef.current = hls;
-            hls.loadSource(src);
-            hls.attachMedia(video);
-
-            hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
-                onReadyRef.current?.();
-                const qualityLevels = data.levels.map((lvl, idx) => ({
-                    height: lvl.height,
-                    index: idx,
-                }));
-                setLevels(qualityLevels);
-
-                // FIX: Seek to startAt position before playing (legacy initialTime pattern)
-                if (startAt && startAt > 0) {
-                    video.currentTime = startAt;
-                }
-                if (autoPlay) safePlay();
-            });
-
-            hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-                setCurrentLevel(data.level);
-            });
-
-            hls.on(Hls.Events.ERROR, (_, data) => {
-                if (data.fatal) {
-                    switch (data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                            hls.startLoad();
-                            break;
-                        case Hls.ErrorTypes.MEDIA_ERROR:
-                            hls.recoverMediaError();
-                            break;
-                        default:
-                            hls.destroy();
-                            onErrorRef.current?.(data);
-                    }
-                }
-            });
-        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        const loadNative = () => {
             // Safari native HLS fallback
             video.src = src;
             const onLoadedMeta = () => {
@@ -222,9 +179,84 @@ export function VideoPlayer({
             } else {
                 video.addEventListener("loadedmetadata", onLoadedMeta, { once: true });
             }
+        };
+
+        let isMounted = true;
+        const initHls = async () => {
+            try {
+                const HlsLib = (await import("hls.js")).default;
+                if (!isMounted) return;
+                
+                if (HlsLib.isSupported()) {
+                    const hls = new HlsLib({
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 60,
+                    });
+                    if (!isMounted) {
+                        hls.destroy();
+                        return;
+                    }
+                    hlsRef.current = hls;
+                    hls.loadSource(src);
+                    hls.attachMedia(video);
+
+                    hls.on(HlsLib.Events.MANIFEST_PARSED, (_, data) => {
+                        if (!isMounted) return;
+                        onReadyRef.current?.();
+                        const qualityLevels = data.levels.map((lvl, idx) => ({
+                            height: lvl.height,
+                            index: idx,
+                        }));
+                        setLevels(qualityLevels);
+
+                        // FIX: Seek to startAt position before playing
+                        if (startAt && startAt > 0) {
+                            video.currentTime = startAt;
+                        }
+                        if (autoPlay) safePlay();
+                    });
+
+                    hls.on(HlsLib.Events.LEVEL_SWITCHED, (_, data) => {
+                        if (!isMounted) return;
+                        setCurrentLevel(data.level);
+                    });
+
+                    hls.on(HlsLib.Events.ERROR, (_, data) => {
+                        if (!isMounted) return;
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case HlsLib.ErrorTypes.NETWORK_ERROR:
+                                    hls.startLoad();
+                                    break;
+                                case HlsLib.ErrorTypes.MEDIA_ERROR:
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    hls.destroy();
+                                    onErrorRef.current?.(data);
+                            }
+                        }
+                    });
+                } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+                    loadNative();
+                }
+            } catch (err) {
+                console.error("Failed to load HLS chunk", err);
+                if (video.canPlayType("application/vnd.apple.mpegurl") && isMounted) {
+                    loadNative();
+                }
+            }
+        };
+
+        // Prefer native HLS on Apple devices to save bandwidth and bundle size
+        if (video.canPlayType("application/vnd.apple.mpegurl") && /Mac OS X|iPhone|iPad|iPod/i.test(navigator.userAgent || "")) {
+            loadNative();
+        } else {
+            initHls();
         }
 
         return () => {
+            isMounted = false;
             hlsRef.current?.destroy();
             hlsRef.current = null;
         };

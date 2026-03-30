@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
 import { FeedService, feedCursorSchema } from "../../services/FeedService";
+import redis from "../../lib/redis.js";
 export const feedRouter = router({
     getSubscriptionsFeed: protectedProcedure
         .input(z.object({
@@ -28,9 +29,10 @@ export const feedRouter = router({
     getHomeFeed: protectedProcedure
         .input(z.object({
         cursor: feedCursorSchema.optional(),
+        categoryId: z.string().optional(),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
-        return yield FeedService.getHomeFeed(ctx.session.user.id, input.cursor);
+        return yield FeedService.getHomeFeed(ctx.session.user.id, input.cursor, input.categoryId);
     })),
     getTrendingFeed: protectedProcedure
         .input(z.object({
@@ -80,5 +82,29 @@ export const feedRouter = router({
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input }) {
         return yield FeedService.getChannelShorts(input.channelId, input.cursor, input.limit);
+    })),
+    getCommunityPostsForFeed: protectedProcedure
+        .input(z.object({
+        limit: z.number().min(1).max(10).optional().default(4),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const userId = ctx.session.user.id;
+        const rawPosts = yield FeedService.getRecentCommunityPosts(userId, input.limit);
+        // Enrich with isLiked, hasVoted, votedOptionIndex — same shape as getChannelPosts
+        const enrichedPosts = yield Promise.all(rawPosts.map((post) => __awaiter(void 0, void 0, void 0, function* () {
+            const [isLikedResult, hasVotedResult] = yield Promise.all([
+                redis.sismember(`community:likes:${post.id}`, userId),
+                post.type === "POLL"
+                    ? redis.sismember(`community:poll_votes:${post.id}`, userId)
+                    : Promise.resolve(0),
+            ]);
+            let votedOptionIndex = null;
+            if (post.type === "POLL" && hasVotedResult === 1) {
+                const storedIdx = yield redis.get(`community:poll_voted_option:${post.id}:${userId}`);
+                votedOptionIndex = storedIdx !== null ? parseInt(storedIdx, 10) : null;
+            }
+            return Object.assign(Object.assign({}, post), { isLiked: isLikedResult === 1, hasVoted: hasVotedResult === 1, votedOptionIndex });
+        })));
+        return enrichedPosts;
     })),
 });

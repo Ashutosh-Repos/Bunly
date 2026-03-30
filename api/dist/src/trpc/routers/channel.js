@@ -88,12 +88,19 @@ export const channelRouter = router({
             return { success: true, channel };
         }
         catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError &&
-                error.code === "P2002") {
-                throw new TRPCError({
-                    code: "CONFLICT",
-                    message: "This handle is already taken.",
-                });
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new TRPCError({
+                        code: "CONFLICT",
+                        message: "This handle is already taken.",
+                    });
+                }
+                if (error.code === "P2003") {
+                    throw new TRPCError({
+                        code: "UNAUTHORIZED",
+                        message: "User account missing or session out of sync. Please log in again.",
+                    });
+                }
             }
             throw error;
         }

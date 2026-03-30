@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { prisma } from "../lib/prisma";
+import { Prisma } from "../../generated/prisma/client";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 export const feedCursorSchema = z.number().min(0).default(0);
@@ -16,7 +17,7 @@ export class FeedService {
      * Get Personalized Home Feed (SQL Computed Score) - Long Form Only
      */
     static getHomeFeed(userId_1) {
-        return __awaiter(this, arguments, void 0, function* (userId, cursor = 0) {
+        return __awaiter(this, arguments, void 0, function* (userId, cursor = 0, categoryId) {
             return this.runFeed({
                 userId,
                 cursor,
@@ -115,9 +116,10 @@ export class FeedService {
      * into a single parameterized builder.
      */
     static runFeed(_a) {
-        return __awaiter(this, arguments, void 0, function* ({ userId, cursor = 0, isShort, scoreColumn, onlyPositiveScore = false, limit = this.PAGE_SIZE, label, }) {
+        return __awaiter(this, arguments, void 0, function* ({ userId, cursor = 0, isShort, scoreColumn, onlyPositiveScore = false, limit = this.PAGE_SIZE, categoryId, label, }) {
             try {
                 let videos;
+                const catFilter = categoryId ? Prisma.sql `AND v."categoryId" = ${categoryId}` : Prisma.empty;
                 if (userId) {
                     if (onlyPositiveScore) {
                         // Authenticated trending feed (trendingScore column)
@@ -139,7 +141,7 @@ export class FeedService {
                             INNER JOIN channels c ON v."channelId" = c.id
                             WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL
                               AND c.status = 'ACTIVE'
-                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0
+                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0 ${catFilter}
                             ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
@@ -176,15 +178,15 @@ export class FeedService {
                             GROUP BY "channelId"
                         ),
                         candidate_pool AS (
-                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."hotScore" DESC LIMIT 500)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ${catFilter} ORDER BY v."hotScore" DESC LIMIT 500)
                             UNION
-                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ${catFilter} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
                             UNION
                             (
                                 SELECT v.id FROM videos v
                                 INNER JOIN channels c ON v."channelId" = c.id
                                 INNER JOIN user_cats uc ON v."categoryId" = uc."categoryId"
-                                WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} AND uc.affinity > 1.0
+                                WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ${catFilter} AND uc.affinity > 1.0
                                 ORDER BY v."hotScore" DESC LIMIT 500
                             )
                         )
@@ -216,7 +218,7 @@ export class FeedService {
                             INNER JOIN channels c ON v."channelId" = c.id
                             WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL
                               AND c.status = 'ACTIVE'
-                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0
+                              AND v."isShort" = ${isShort} AND v."trendingScore" > 0 ${catFilter}
                             ORDER BY v."trendingScore" DESC LIMIT 500
                         )
                         SELECT
@@ -238,9 +240,9 @@ export class FeedService {
                     else {
                         videos = yield prisma.$queryRaw `
                         WITH candidate_pool AS (
-                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."hotScore" DESC LIMIT 500)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ${catFilter} ORDER BY v."hotScore" DESC LIMIT 500)
                             UNION
-                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
+                            (SELECT v.id FROM videos v INNER JOIN channels c ON v."channelId" = c.id WHERE v.visibility = 'PUBLIC' AND v."processingStatus" = 'READY' AND v."deletedAt" IS NULL AND c.status = 'ACTIVE' AND v."isShort" = ${isShort} ${catFilter} ORDER BY v."publishedAt" DESC NULLS LAST LIMIT 200)
                         )
                         SELECT
                             v.id, v.title, v."thumbnailUrl", v."previewSprite", v."hlsPlaylistUrl", v."channelId",
@@ -525,6 +527,44 @@ export class FeedService {
             nextCursor = undefined;
         }
         return { videos: formattedVideos, nextCursor };
+    }
+    /**
+     * Fetch recent community posts from channels the user subscribes to.
+     * Used by the mixed home feed to interleave posts between videos.
+     */
+    static getRecentCommunityPosts(userId_1) {
+        return __awaiter(this, arguments, void 0, function* (userId, limit = 4) {
+            try {
+                const posts = yield prisma.community_posts.findMany({
+                    where: {
+                        deletedAt: null,
+                        channels: {
+                            status: "ACTIVE",
+                            subscriptions: {
+                                some: { subscriberId: userId },
+                            },
+                        },
+                    },
+                    take: limit,
+                    orderBy: { createdAt: "desc" },
+                    include: {
+                        channels: {
+                            select: {
+                                id: true,
+                                name: true,
+                                handle: true,
+                                image: true,
+                            },
+                        },
+                    },
+                });
+                return posts;
+            }
+            catch (error) {
+                console.error("[FeedService] getRecentCommunityPosts failed", error);
+                return [];
+            }
+        });
     }
 }
 FeedService.PAGE_SIZE = 20;

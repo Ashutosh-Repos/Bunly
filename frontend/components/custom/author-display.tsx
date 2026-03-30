@@ -5,8 +5,8 @@ import { IconCircleCheckFilled } from "@tabler/icons-react";
 
 export interface AuthorDTO {
     id: string;
-    name: string;
-    handle: string;
+    name: string | null;
+    handle: string | null;
     image: string | null;
     isVerified?: boolean;
 }
@@ -14,32 +14,37 @@ export interface AuthorDTO {
 interface AuthorAvatarProps {
     author: AuthorDTO | null | undefined;
     className?: string; // used to set width/height
+    disableLink?: boolean;
 }
 
-export function AuthorAvatar({ author, className = "w-9 h-9" }: AuthorAvatarProps) {
+export function AuthorAvatar({ author, className = "w-9 h-9", disableLink = false }: AuthorAvatarProps) {
     const handleHref = author?.handle ? `/@${author.handle}` : "#";
     const nameFallback = (author?.name || "C").slice(0, 2).toUpperCase();
 
-    if (!author?.image) {
-        return (
-            <Link href={handleHref} className="shrink-0 flex">
-                <div className={`${className} rounded-full bg-primary/10 flex items-center justify-center border shadow-sm`}>
-                    <span className="text-primary text-[10px] font-bold">
-                        {nameFallback}
-                    </span>
-                </div>
-            </Link>
-        );
+    const Content = (
+        <Avatar className={`${className} border shadow-sm`}>
+            <AvatarImage src={getMediaUrl(author?.image)} alt={author?.name ?? ""} />
+            <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                {nameFallback}
+            </AvatarFallback>
+        </Avatar>
+    );
+
+    const FallbackContent = (
+        <div className={`${className} rounded-full bg-primary/10 flex items-center justify-center border shadow-sm`}>
+            <span className="text-primary text-[10px] font-bold">
+                {nameFallback}
+            </span>
+        </div>
+    );
+
+    if (disableLink) {
+        return author?.image ? Content : FallbackContent;
     }
 
     return (
         <Link href={handleHref} className="shrink-0 flex">
-            <Avatar className={`${className} border shadow-sm`}>
-                <AvatarImage src={getMediaUrl(author.image)} alt={author.name} />
-                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                    {nameFallback}
-                </AvatarFallback>
-            </Avatar>
+            {author?.image ? Content : FallbackContent}
         </Link>
     );
 }
@@ -48,11 +53,23 @@ interface AuthorNameProps {
     author: AuthorDTO | null | undefined;
     className?: string;
     showHandle?: boolean;
+    disableLink?: boolean;
 }
 
-export function AuthorName({ author, className = "", showHandle = false }: AuthorNameProps) {
+export function AuthorName({ author, className = "", showHandle = false, disableLink = false }: AuthorNameProps) {
     const handleHref = author?.handle ? `/@${author.handle}` : "#";
     const displayName = showHandle && author?.handle ? `@${author.handle}` : (author?.name || "Unknown User");
+
+    if (disableLink) {
+        return (
+            <span className={`flex items-center gap-1 ${className}`}>
+                <span className="truncate">{displayName}</span>
+                {author?.isVerified && (
+                    <IconCircleCheckFilled size={14} className="text-muted-foreground shrink-0" />
+                )}
+            </span>
+        );
+    }
 
     return (
         <Link href={handleHref} className={`flex items-center gap-1 hover:text-foreground hover:underline decoration-foreground/30 transition-colors ${className}`}>

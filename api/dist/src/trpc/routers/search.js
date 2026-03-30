@@ -30,10 +30,13 @@ export const searchRouter = router({
         filter: z
             .enum(["ALL", "VIDEOS", "CHANNELS", "PLAYLISTS"])
             .default("ALL"),
+        sortBy: z.enum(["relevance", "newest", "viewCount"]).default("relevance"),
+        uploadDate: z.enum(["today", "thisWeek", "thisMonth", "thisYear"]).optional(),
+        duration: z.enum(["short", "medium", "long"]).optional(),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
         var _b, _c;
-        const { query, cursor, limit, filter } = input;
+        const { query, cursor, limit, filter, sortBy, uploadDate, duration } = input;
         const sanitizedQuery = query.replace(/[&|!():*<>\\]/g, "").trim();
         if (!sanitizedQuery) {
             return {
@@ -223,29 +226,59 @@ export const searchRouter = router({
                 return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null });
             });
         }
+        // Build dynamic where clause for video filters
+        const videoDateFilter = {};
+        if (uploadDate) {
+            const now = new Date();
+            if (uploadDate === "today") {
+                videoDateFilter.gte = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            }
+            else if (uploadDate === "thisWeek") {
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                videoDateFilter.gte = weekAgo;
+            }
+            else if (uploadDate === "thisMonth") {
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                videoDateFilter.gte = monthAgo;
+            }
+            else if (uploadDate === "thisYear") {
+                const yearAgo = new Date(now);
+                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                videoDateFilter.gte = yearAgo;
+            }
+        }
+        const videoDurationFilter = {};
+        if (duration === "short") {
+            videoDurationFilter.lt = 240; // < 4 min
+        }
+        else if (duration === "medium") {
+            videoDurationFilter.gte = 240;
+            videoDurationFilter.lte = 1200; // 4-20 min
+        }
+        else if (duration === "long") {
+            videoDurationFilter.gt = 1200; // > 20 min
+        }
+        const videoOrderBy = sortBy === "newest"
+            ? [{ createdAt: "desc" }, { id: "asc" }]
+            : sortBy === "viewCount"
+                ? [{ viewCount: "desc" }, { id: "asc" }]
+                : [{ engagementScore: "desc" }, { viewCount: "desc" }, { id: "asc" }];
         // Prisma text search fallback (Can be upgraded to Raw SQL tsvector proxy)
         const videos = yield prisma.videos.findMany({
-            where: {
-                visibility: "PUBLIC",
-                processingStatus: "READY",
-                deletedAt: null,
-                OR: [
+            where: Object.assign(Object.assign({ visibility: "PUBLIC", processingStatus: "READY", deletedAt: null, OR: [
                     { title: { search: formattedQuery } },
                     {
                         description: {
                             search: formattedQuery,
                         },
                     },
-                ],
-            },
+                ] }, (Object.keys(videoDateFilter).length > 0 ? { createdAt: videoDateFilter } : {})), (Object.keys(videoDurationFilter).length > 0 ? { duration: videoDurationFilter } : {})),
             take: limit + 1,
             cursor: cursor ? { id: cursor } : undefined,
             skip: cursor ? 1 : 0,
-            orderBy: [
-                { engagementScore: "desc" }, // Quality filter
-                { viewCount: "desc" }, // Popularity fallback
-                { id: "asc" }, // Deterministic order for cursor
-            ],
+            orderBy: videoOrderBy,
             select: {
                 id: true,
                 title: true,

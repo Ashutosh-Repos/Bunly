@@ -17,7 +17,7 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: "Bunly",
-  description: "Shorten, manage, and track your links.",
+  description: "Watch, share, and discover videos on Bunly — the next-generation streaming platform.",
 };
 
 export default function RootLayout({

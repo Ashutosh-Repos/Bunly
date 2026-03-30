@@ -4,7 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
-import { IconDotsVertical, IconTrash, IconUser } from "@tabler/icons-react";
+import { IconDotsVertical, IconTrash } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getMediaUrl, formatDuration } from "@/lib/utils";
+
+import { AuthorAvatar, AuthorName, AuthorDTO } from "@/components/custom/author-display";
 
 // Matches the exact shape returned by HistoryService.fetchHistoryFromDatabase
 export interface HistoryItemData {
@@ -30,12 +32,7 @@ export interface HistoryItemData {
         createdAt: Date | string;
         description?: string | null;
         isShort?: boolean | null;
-        channels: {
-            id: string;
-            handle?: string | null;
-            name: string;
-            image?: string | null;
-        };
+        author: AuthorDTO;
     };
 }
 
@@ -53,8 +50,6 @@ export const HistoryItem = memo(function HistoryItem({
         video.duration && item.watchedSeconds
             ? Math.min((item.watchedSeconds / video.duration) * 100, 100)
             : 0;
-
-    const channelHref = `/channel/${video.channels.handle || video.channels.id}`;
 
     return (
         <article className="flex flex-col sm:flex-row gap-4 group p-3 rounded-xl hover:bg-secondary/40 transition-colors relative border border-transparent hover:border-border/40 hover:shadow-md transform-gpu">
@@ -103,28 +98,11 @@ export const HistoryItem = memo(function HistoryItem({
 
                 {/* Channel Row — avatar + name */}
                 <div className="flex items-center gap-2 mt-2">
-                    {/* [NEW] Channel avatar rendered from the `channels.image` field the backend actually returns */}
-                    <Link href={channelHref} className="shrink-0">
-                        {video.channels.image ? (
-                            <Image
-                                src={getMediaUrl(video.channels.image)}
-                                alt={video.channels.name}
-                                width={20}
-                                height={20}
-                                className="rounded-full object-cover"
-                            />
-                        ) : (
-                            <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center">
-                                <IconUser className="h-3 w-3 text-muted-foreground" stroke={2} />
-                            </div>
-                        )}
-                    </Link>
-                    <Link
-                        href={channelHref}
-                        className="text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors sm:text-sm truncate"
-                    >
-                        {video.channels.name}
-                    </Link>
+                    <AuthorAvatar author={video.author} className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <AuthorName 
+                        author={video.author} 
+                        className="text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors sm:text-sm truncate" 
+                    />
                 </div>
 
                 {/* View count + upload date */}

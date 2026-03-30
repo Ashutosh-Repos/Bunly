@@ -1,13 +1,13 @@
 "use client";
 
-import { use, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { VideoPlayer } from "@/components/custom/video-player";
 import { getMediaUrl } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { AuthorAvatar, AuthorName } from "@/components/custom/author-display";
 import {
     IconThumbUp,
     IconThumbDown,
@@ -22,10 +22,17 @@ import { toast } from "sonner";
 import { CompactVideoCard, CompactVideoCardSkeleton } from "@/components/custom/compact-video-card";
 import { CommentsSection } from "./_components/comments-section";
 
+import { RouterOutputs } from "@/lib/trpc-client";
+
 import { ReportVideoModal } from "./_components/report-modal";
 
-export default function WatchPage({ params }: { params: Promise<{ videoId: string }> }) {
-    const { videoId } = use(params);
+export default function WatchPage({ 
+    videoId, 
+    initialVideoData 
+}: { 
+    videoId: string;
+    initialVideoData?: RouterOutputs["video"]["getPublicVideo"]; 
+}) {
     const utils = trpc.useUtils();
     
     const searchParams = useSearchParams();
@@ -50,7 +57,11 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
 
     const { data, isLoading, error } = trpc.video.getPublicVideo.useQuery(
         { videoId },
-        { retry: false, refetchOnWindowFocus: false }
+        { 
+            initialData: initialVideoData || undefined,
+            retry: false, 
+            refetchOnWindowFocus: false 
+        }
     );
 
     // L4: Register a view once the video data loads
@@ -257,19 +268,10 @@ export default function WatchPage({ params }: { params: Promise<{ videoId: strin
 
                     {/* Channel Info */}
                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <Link href={`/@${channel?.handle}`}>
-                            <Avatar className="w-10 h-10 border shadow-sm">
-                                <AvatarImage src={channel?.image ? getMediaUrl(channel.image) : undefined} />
-                                <AvatarFallback className="font-bold text-primary bg-primary/10 tracking-widest uppercase text-xs">
-                                    {channel?.name?.slice(0, 2) || "U"}
-                                </AvatarFallback>
-                            </Avatar>
-                        </Link>
-                        <div className="flex flex-col -gap-1">
-                            <Link href={`/@${channel?.handle}`} className="font-semibold text-sm leading-tight hover:text-primary transition-colors">
-                                {channel?.name}
-                            </Link>
-                            <span className="text-xs text-muted-foreground tracking-wide">
+                        <AuthorAvatar author={channel} className="w-10 h-10" />
+                        <div className="flex flex-col">
+                            <AuthorName author={channel} className="font-semibold text-sm leading-tight hover:text-primary transition-colors" />
+                            <span className="text-xs text-muted-foreground tracking-wide mt-0.5">
                                 {channel?.subscriberCount?.toLocaleString() || 0} subscribers
                             </span>
                         </div>

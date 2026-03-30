@@ -35,32 +35,56 @@ export function SearchForm() {
     });
 
     const [listening, setListening] = useState(false);
-    const [spokenText, setSpokenText] = useState(""); // ✅ preview state
+    const [spokenText, setSpokenText] = useState("");
     const recognitionRef = useRef<SpeechRecognition | null>(null);
+    const isMounted = useRef(true);
 
     const micIconRef = useRef<MicIconHandle>(null);
     const [isFormActive, setFormActive] = useState<boolean>(false);
 
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
     const cancelListening = () => {
         const recognition = recognitionRef.current;
-        if (recognition) recognition.abort();
-        // form.reset(); // Don't reset, preserve typed text
-        setSpokenText("");
-        setListening(false);
-        micIconRef.current?.stopAnimation();
+        if (recognition) {
+            try {
+                recognition.abort();
+            } catch (e) {
+                // ignore
+            }
+        }
+        if (isMounted.current) {
+            setSpokenText("");
+            setListening(false);
+            micIconRef.current?.stopAnimation();
+        }
     };
 
     const startListening = () => {
         const recognition = recognitionRef.current;
-        micIconRef.current?.startAnimation();
         if (!recognition) {
             toast.error("Speech recognition not supported in this browser.");
             return;
         }
+
         form.setValue("query", "");
-        setSpokenText("");
-        recognition.start();
-        setListening(true);
+        if (isMounted.current) {
+            setSpokenText("");
+            setListening(true);
+            micIconRef.current?.startAnimation();
+        }
+
+        try {
+            recognition.start();
+        } catch (error) {
+            console.error("Failed to start recognition:", error);
+            cancelListening();
+        }
     };
 
     function onSubmit(data: z.infer<typeof FormSchema>) {
@@ -73,47 +97,56 @@ export function SearchForm() {
         setFormActive(false);
     }
 
-    // ✅ Setup SpeechRecognition once
+    // Setup SpeechRecognition
     useEffect(() => {
         if (typeof window === "undefined") return;
 
         const SpeechRecognition =
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (window as any).SpeechRecognition ||
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (window as any).webkitSpeechRecognition;
 
         if (SpeechRecognition && !recognitionRef.current) {
             const recognition = new SpeechRecognition();
-
             recognition.lang = "en-US";
-            recognition.interimResults = true; // ✅ allow partial results
+            recognition.interimResults = true;
             recognition.continuous = false;
 
             recognition.onresult = (event: SpeechRecognitionEvent) => {
+                if (!isMounted.current) return;
                 const text = Array.from(event.results)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .map((result: any) => result[0]?.transcript || "")
                     .join("");
-                setSpokenText(text); // live preview
+                setSpokenText(text);
                 if (event.results[0]?.isFinal) {
                     form.setValue("query", text);
                 }
             };
 
             recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-                if (event.error === "aborted" || event.error === "no-speech") {
-                    // User clicked cancel → not a real error
-                    return;
+                if (!isMounted.current) return;
+                const errorCode = event.error;
+
+                if (errorCode === "not-allowed" || errorCode === "service-not-allowed") {
+                    if (!window.isSecureContext) {
+                        toast.error("Speech recognition requires a secure (HTTPS) connection. Please try a different browser or use a secure origin.");
+                    } else {
+                        toast.error("Microphone access is blocked. If you just enabled it, please refresh the page to apply changes.");
+                    }
+                } else if (errorCode === "audio-capture") {
+                    toast.error("No microphone detected. Please check your hardware.");
+                } else if (errorCode === "network") {
+                    toast.error("Network error. Please check your connection.");
+                } else if (errorCode !== "aborted" && errorCode !== "no-speech") {
+                    console.error("Speech recognition error:", errorCode);
+                    toast.error(`Error: ${errorCode}`);
                 }
-                console.error("Speech recognition error:", event.error);
-                setListening(false);
-                setSpokenText("");
+                cancelListening();
             };
-            // ✅ Auto-submit only if valid, else reset
+
             recognition.onend = () => {
+                if (!isMounted.current) return;
                 const query = form.getValues("query").trim();
-                if (query && query.length > 0) {
+                if (query) {
                     form.handleSubmit(onSubmit)();
                 }
                 cancelListening();
@@ -121,8 +154,15 @@ export function SearchForm() {
 
             recognitionRef.current = recognition;
         }
+
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.abort();
+                recognitionRef.current = null;
+            }
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form]);
+    }, []);
 
     const ref = useRef<HTMLFormElement>(null);
     useClickOutside(ref, () => setFormActive(false), isFormActive);

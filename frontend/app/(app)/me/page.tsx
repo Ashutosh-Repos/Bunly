@@ -663,7 +663,7 @@ export default function MePage() {
                     {user.channels.map((channel) => (
                       <Link
                         key={channel.id}
-                        href={`/channel/${channel.handle}`}
+                        href={`/@${channel.handle}`}
                         className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/60 hover:border-primary/50 hover:shadow-md transition-all group"
                       >
                         <Avatar className="size-14 border-2 border-primary/10 bg-primary/5 group-hover:scale-105 transition-transform">

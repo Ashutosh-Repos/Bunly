@@ -1,70 +1,68 @@
 import { Metadata } from "next";
+import { cache } from "react";
 import WatchClientPage from "./watch-client";
+import { getTrpcServer } from "@/lib/trpc-server";
 
 type Props = {
     params: Promise<{ videoId: string }>;
 };
 
 /**
+ * Shared, cached fetcher for the video data on the server.
+ * Next.js automatically deduplicates this across generateMetadata and the Page component.
+ */
+const getVideo = cache(async (videoId: string) => {
+    const trpc = await getTrpcServer();
+    try {
+        return await trpc.video.getPublicVideo.query({ videoId });
+    } catch (err) {
+        console.error("Failed to pre-fetch video data:", err);
+        return null;
+    }
+});
+
+/**
  * Server-side metadata fetcher for YouTube-style rich embeds on Discord/Twitter/iMessage.
- * This intercepts the route on the server and generates SSR HTML <meta> tags before hydrating the client-side TRPC interface.
  */
 export async function generateMetadata(
     { params }: Props,
 ): Promise<Metadata> {
     const { videoId } = await params;
+    const video = await getVideo(videoId);
 
-    try {
-        // Call the backend TRPC public video query directly via HTTP GET.
-        const inputStr = encodeURIComponent(JSON.stringify({ json: { videoId } }));
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-        
-        const res = await fetch(`${apiUrl}/api/trpc/video.getPublicVideo?input=${inputStr}`, {
-            next: { revalidate: 60 }, // Cache on edge for 60s
-        });
+    if (!video) {
+        return { title: "Video Not Found - Bunly" };
+    }
 
-        if (!res.ok) {
-            return { title: "Video Unavailable" };
-        }
+    const titleText = `${video.title} - ${video.author?.name || "Bunly"}`;
+    const descText = video.description?.substring(0, 160) || `Watch ${video.title} on Bunly`;
 
-        const data = await res.json();
-        const video = data?.result?.data?.json;
-
-        if (!video) {
-            return { title: "Video Not Found" };
-        }
-
-        const titleText = `${video.title} - ${video.channels?.name || "Bunly"}`;
-        const descText = video.description?.substring(0, 160) || `Watch ${video.title} on Bunly`;
-
-        return {
+    return {
+        title: titleText,
+        description: descText,
+        openGraph: {
             title: titleText,
             description: descText,
-            openGraph: {
-                title: titleText,
-                description: descText,
-                images: video.thumbnailUrl ? [video.thumbnailUrl] : [],
-                type: "video.other",
-            },
-            twitter: {
-                card: "summary_large_image",
-                title: titleText,
-                description: descText,
-                images: video.thumbnailUrl ? [video.thumbnailUrl] : [],
-                creator: video.channels?.handle ? `@${video.channels.handle}` : undefined,
-            },
-        };
-    } catch {
-        return {
-            title: "Watch on Bunly",
-        };
-    }
+            images: video.thumbnailUrl ? [video.thumbnailUrl] : [],
+            type: "video.other",
+        },
+        twitter: {
+            card: "summary_large_image",
+            title: titleText,
+            description: descText,
+            images: video.thumbnailUrl ? [video.thumbnailUrl] : [],
+            creator: video.author?.handle ? `@${video.author.handle}` : undefined,
+        },
+    };
 }
 
 /**
  * SSR Page Component.
- * Just passes the `params` promise down to the interactive client tier which resolves it using `use()`.
+ * Fetches the primary video data on the server and passes it to the interactive client tier.
  */
-export default function Page({ params }: Props) {
-    return <WatchClientPage params={params} />;
+export default async function Page({ params }: Props) {
+    const { videoId } = await params;
+    const initialVideoData = await getVideo(videoId);
+
+    return <WatchClientPage videoId={videoId} initialVideoData={initialVideoData || undefined} />;
 }

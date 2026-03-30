@@ -90,6 +90,16 @@ export const communityRouter = router({
                 cursor: cursor ? { id: cursor } : undefined,
                 skip: cursor ? 1 : 0,
                 orderBy: { createdAt: "desc" },
+                include: {
+                    channels: {
+                        select: {
+                            id: true,
+                            name: true,
+                            handle: true,
+                            image: true,
+                        },
+                    },
+                },
             });
 
             let nextCursor: string | undefined = undefined;
@@ -98,11 +108,37 @@ export const communityRouter = router({
                 nextCursor = nextItem?.id;
             }
 
-            // Enrich with isLiked for the calling user
+            // Enrich with isLiked, hasVoted, and votedOptionIndex for the calling user
             const enrichedItems = await Promise.all(
                 items.map(async (item) => {
-                    const isLiked = await redis.sismember(`community:likes:${item.id}`, userId);
-                    return { ...item, isLiked: isLiked === 1 };
+                    const [isLikedResult, hasVotedResult] = await Promise.all([
+                        redis.sismember(`community:likes:${item.id}`, userId),
+                        item.type === "POLL"
+                            ? redis.sismember(`community:poll_votes:${item.id}`, userId)
+                            : Promise.resolve(0),
+                    ]);
+
+                    let votedOptionIndex: number | null = null;
+                    if (item.type === "POLL" && hasVotedResult === 1) {
+                        const storedIdx = await redis.get(`community:poll_voted_option:${item.id}:${userId}`);
+                        votedOptionIndex = storedIdx !== null ? parseInt(storedIdx, 10) : null;
+                    }
+
+                    const { channels, ...rest } = item;
+
+                    return {
+                        ...rest,
+                        author: channels ? {
+                            id: channels.id,
+                            name: channels.name || "Unknown Channel",
+                            handle: channels.handle || "",
+                            image: channels.image || null,
+                        } : null,
+                        isEdited: rest.updatedAt.getTime() - rest.createdAt.getTime() > 2000, // 2s drift tolerance
+                        isLiked: isLikedResult === 1,
+                        hasVoted: hasVotedResult === 1,
+                        votedOptionIndex,
+                    };
                 })
             );
 
@@ -153,10 +189,23 @@ export const communityRouter = router({
                 WHERE id = ${postId} AND type = 'POLL' AND ("pollEndsAt" IS NULL OR "pollEndsAt" > NOW())
             `;
 
-            // Mark user as voted
-            await redis.sadd(voterKey, ctx.session.user.id);
+            // Mark user as voted + store the chosen option index
+            await Promise.all([
+                redis.sadd(voterKey, ctx.session.user.id),
+                redis.set(`community:poll_voted_option:${postId}:${ctx.session.user.id}`, idxStr),
+            ]);
 
-            return { success: true };
+            // Return updated results so frontend can animate immediately
+            const updatedPost = await prisma.community_posts.findUnique({
+                where: { id: postId },
+                select: { pollResults: true },
+            });
+
+            return {
+                success: true,
+                pollResults: updatedPost?.pollResults ?? {},
+                votedOptionIndex: optionIndex,
+            };
         }),
 
     togglePostLike: protectedProcedure
