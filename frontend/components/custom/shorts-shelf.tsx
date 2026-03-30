@@ -2,7 +2,9 @@
 
 import { BunlyImage } from "@/components/custom/bunly-image";
 import type { VideoGridVideo } from "@/components/custom/video-grid";
+import { IconFlame } from "@tabler/icons-react";
 import useEmblaCarousel from "embla-carousel-react";
+import Link from "next/link";
 
 interface ShortsShelfProps {
     shorts: VideoGridVideo[];
