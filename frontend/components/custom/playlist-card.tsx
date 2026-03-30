@@ -49,7 +49,7 @@ export function PlaylistCard({
                     {author && (
                         <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground truncate">
                             <span>By</span>
-                            <AuthorName author={author} className="inline-flex hover:no-underline" />
+                            <AuthorName author={author} disableLink className="inline-flex hover:no-underline" />
                         </div>
                     )}
                 </div>

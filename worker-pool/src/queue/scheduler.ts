@@ -260,6 +260,31 @@ async function handleFanout(job: Job) {
                 })),
                 skipDuplicates: true, // Safety against retries
             });
+
+            // Fetch created notifications to enable real-time delivery via Pub/Sub
+            const createdNotifs = await prisma.notifications.findMany({
+                where: {
+                    userId: { in: eligible },
+                    type: "NEW_VIDEO",
+                    videoId,
+                },
+                include: {
+                    user_notifications_actorIdTouser: {
+                        select: { id: true, name: true, image: true },
+                    },
+                },
+            });
+
+            if (createdNotifs.length > 0) {
+                const pipeline = redis.pipeline();
+                for (const notif of createdNotifs) {
+                    pipeline.publish(`user:notifications:${notif.userId}`, JSON.stringify(notif));
+                }
+                
+                await pipeline.exec().catch((e: unknown) => {
+                    console.warn("[FanoutWorker] Failed to publish new video notifications to Redis", e);
+                });
+            }
         }
 
         if (subs.length < CHUNK) break; // Last page

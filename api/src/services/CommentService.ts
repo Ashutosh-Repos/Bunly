@@ -516,6 +516,7 @@ export class CommentService {
                 commentId: comment.id,
                 thumbnailUrl: comment.videos.thumbnailUrl || undefined,
                 actionUrl: `/watch/${comment.videoId}?lc=${comment.id}`,
+                groupKey: `COMMENT:${comment.videoId}:${new Date().toISOString().slice(0, 10)}`,
             });
         }
 
@@ -545,6 +546,7 @@ export class CommentService {
                     commentId: comment.id,
                     thumbnailUrl: comment.videos.thumbnailUrl || undefined,
                     actionUrl: `/watch/${comment.videoId}?lc=${comment.id}`,
+                    groupKey: `COMMENT_REPLY:${comment.parentId}:${new Date().toISOString().slice(0, 10)}`,
                 });
             }
         }

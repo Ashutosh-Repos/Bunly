@@ -19,6 +19,7 @@ const FILTER_TABS = [
     { key: "all", label: "All Activity" },
     { key: "uploads", label: "Uploads" },
     { key: "comments", label: "Mentions & Comments" },
+    { key: "activity", label: "Activity" },
 ] as const;
 
 type FilterTab = (typeof FILTER_TABS)[number]["key"];
@@ -80,7 +81,7 @@ export default function NotificationsPage() {
                     return {
                         ...old,
                         pages: [
-                            { ...firstPage, items: [notification, ...firstPage.items] },
+                            { ...firstPage, items: [notification, ...firstPage.items.filter(i => i.id !== notification.id)] },
                             ...old.pages.slice(1)
                         ]
                     };
@@ -94,6 +95,8 @@ export default function NotificationsPage() {
                     utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "uploads" }, updater);
                 } else if (notification.type === 'COMMENT' || notification.type === 'COMMENT_REPLY') {
                     utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "comments" }, updater);
+                } else if (['VIDEO_LIKE', 'COMMENT_LIKE', 'NEW_SUBSCRIBER', 'LIVE_STARTED', 'LIVE_SCHEDULED', 'SYSTEM'].includes(notification.type)) {
+                    utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "activity" }, updater);
                 }
                 
                 // Add to specific tab dynamically if it matches
@@ -122,6 +125,7 @@ export default function NotificationsPage() {
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: undefined }, updater);
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "uploads" }, updater);
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "comments" }, updater);
+            utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "activity" }, updater);
             utils.notification.getUnreadCount.setData(undefined, 0);
         },
         onSuccess: () => {
@@ -199,6 +203,7 @@ export default function NotificationsPage() {
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: undefined }, updater);
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "uploads" }, updater);
             utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "comments" }, updater);
+            utils.notification.list.setInfiniteData({ limit: 20, typeFilter: "activity" }, updater);
             
             // Adjust unread global state atomically
             utils.notification.getUnreadCount.setData(undefined, (old: number | undefined) => Math.max(0, (old || 0) - 1));

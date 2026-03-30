@@ -491,6 +491,7 @@ async function handleEngagementBatch(
                         videoId: like.videoId,
                         thumbnailUrl: video.thumbnailUrl,
                         actionUrl: `/watch/${like.videoId}`,
+                        groupKey: `VIDEO_LIKE:${like.videoId}:${new Date().toISOString().slice(0, 10)}`,
                     },
                     include: {
                         user_notifications_actorIdTouser: {

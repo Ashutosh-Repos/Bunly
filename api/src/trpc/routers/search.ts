@@ -199,7 +199,7 @@ export const searchRouter = router({
                             ],
                         },
                         take: 2,
-                        orderBy: { subscriberCount: "desc" },
+                        orderBy: [{ subscriberCount: "desc" }, { id: "asc" }],
                         select: {
                             id: true,
                             name: true,
@@ -215,7 +215,7 @@ export const searchRouter = router({
                             title: { search: formattedQuery },
                         },
                         take: 3,
-                        orderBy: { videoCount: "desc" },
+                        orderBy: [{ videoCount: "desc" }, { id: "asc" }],
                         select: {
                             id: true,
                             title: true,
