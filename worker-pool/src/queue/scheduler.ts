@@ -1,3 +1,4 @@
+import { NotificationService } from "../services/NotificationService.js";
 import { Worker, type Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
 import redis, { getRedisConnection } from "../lib/redis.js";
@@ -278,7 +279,7 @@ async function handleFanout(job: Job) {
             if (createdNotifs.length > 0) {
                 const pipeline = redis.pipeline();
                 for (const notif of createdNotifs) {
-                    pipeline.publish(`user:notifications:${notif.userId}`, JSON.stringify(notif));
+                    pipeline.publish(NotificationService.getChannel(notif.userId), JSON.stringify(notif));
                 }
                 
                 await pipeline.exec().catch((e: unknown) => {

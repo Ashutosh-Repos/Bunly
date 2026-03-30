@@ -1,8 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { IconPlaylist } from "@tabler/icons-react";
-import { getMediaUrl } from "@/lib/utils";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 import { AuthorName, type AuthorDTO } from "./author-display";
 
@@ -32,8 +31,8 @@ export function PlaylistCard({
                         </span>
                     </div>
                     {firstVideoThumbnail ? (
-                        <Image 
-                            src={getMediaUrl(firstVideoThumbnail)}
+                        <BunlyImage 
+                            src={firstVideoThumbnail}
                             alt={title}
                             fill
                             className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"

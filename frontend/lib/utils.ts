@@ -9,6 +9,7 @@ export function getMediaUrl(key: string | null | undefined) {
     if (!key) return "";
     if (key.startsWith("http")) return key;
     if (key.startsWith("/")) return key;
+    if (key.startsWith("blob:")) return key;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
     const bucket = process.env.NEXT_PUBLIC_S3_BUCKET_NAME || "youtube-videos";

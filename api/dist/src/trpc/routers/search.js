@@ -142,8 +142,13 @@ export const searchRouter = router({
             }
             fetchedPlaylists = playlistsList.map((p) => {
                 var _a, _b, _c;
-                const { playlist_videos } = p, rest = __rest(p, ["playlist_videos"]);
-                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null });
+                const { playlist_videos, channels } = p, rest = __rest(p, ["playlist_videos", "channels"]);
+                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null, author: channels ? {
+                        id: channels.id,
+                        name: channels.name,
+                        handle: channels.handle,
+                        image: channels.image,
+                    } : null });
             });
             return {
                 channels: [],
@@ -165,7 +170,7 @@ export const searchRouter = router({
                         ],
                     },
                     take: 2,
-                    orderBy: { subscriberCount: "desc" },
+                    orderBy: [{ subscriberCount: "desc" }, { id: "asc" }],
                     select: {
                         id: true,
                         name: true,
@@ -181,7 +186,7 @@ export const searchRouter = router({
                         title: { search: formattedQuery },
                     },
                     take: 3,
-                    orderBy: { videoCount: "desc" },
+                    orderBy: [{ videoCount: "desc" }, { id: "asc" }],
                     select: {
                         id: true,
                         title: true,
@@ -222,8 +227,13 @@ export const searchRouter = router({
             }
             fetchedPlaylists = playlistsList.map((p) => {
                 var _a, _b, _c;
-                const { playlist_videos } = p, rest = __rest(p, ["playlist_videos"]);
-                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null });
+                const { playlist_videos, channels } = p, rest = __rest(p, ["playlist_videos", "channels"]);
+                return Object.assign(Object.assign({}, rest), { updatedAt: rest.updatedAt.toISOString(), firstVideoThumbnail: (_c = (_b = (_a = playlist_videos[0]) === null || _a === void 0 ? void 0 : _a.videos) === null || _b === void 0 ? void 0 : _b.thumbnailUrl) !== null && _c !== void 0 ? _c : null, author: channels ? {
+                        id: channels.id,
+                        name: channels.name,
+                        handle: channels.handle,
+                        image: channels.image,
+                    } : null });
             });
         }
         // Build dynamic where clause for video filters

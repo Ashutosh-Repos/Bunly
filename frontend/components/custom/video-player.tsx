@@ -12,6 +12,7 @@ import {
     IconMinimize,
     IconSettings,
 } from "@tabler/icons-react";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 interface VideoPlayerProps {
     videoId: string;
@@ -531,8 +532,13 @@ export function VideoPlayer({
                                 style={{ left: `${hoverX}px`, transform: "translateX(-50%)" }}
                             >
                                 {hoverThumb && (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={hoverThumb} alt="" className="w-28 h-16 rounded shadow-lg border border-white/10 object-cover" />
+                                    <BunlyImage
+                                        src={hoverThumb}
+                                        alt="Seek preview"
+                                        width={112}
+                                        height={64}
+                                        className="rounded shadow-lg border border-white/10 object-cover"
+                                    />
                                 )}
                                 {hoverChapter && (
                                     <span className="text-xs bg-black/80 text-white px-2 py-0.5 rounded font-medium whitespace-nowrap shadow-sm">

@@ -14,6 +14,7 @@ import {
 import { getMediaUrl, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc-client";
 import { AuthorAvatar, AuthorName } from "@/components/custom/author-display";
+import { BunlyImage } from "@/components/custom/bunly-image";
 import { toast } from "sonner";
 import type { RouterOutputs } from "@/lib/trpc-client";
 import { motion, AnimatePresence } from "framer-motion";
@@ -113,12 +114,12 @@ function ImageCarousel({ urls }: { urls: string[] }) {
 
     if (urls.length === 1) {
         return (
-            <div className="mt-4 rounded-xl overflow-hidden border border-border/50 max-h-[500px] flex items-center justify-center bg-muted/30">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                    src={getMediaUrl(urls[0])}
+            <div className="mt-4 rounded-xl overflow-hidden border border-border/50 max-h-[500px] flex items-center justify-center bg-muted/30 relative aspect-video">
+                <BunlyImage
+                    src={urls[0]}
                     alt="Post attachment"
-                    className="object-contain max-h-[500px] w-full"
+                    fill
+                    className="object-contain"
                     loading="lazy"
                 />
             </div>
@@ -131,12 +132,12 @@ function ImageCarousel({ urls }: { urls: string[] }) {
                 <div className="flex">
                     {urls.map((url, i) => (
                         <div key={i} className="flex-[0_0_100%] min-w-0">
-                            <div className="max-h-[500px] flex items-center justify-center bg-muted/30">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={getMediaUrl(url)}
+                            <div className="max-h-[500px] flex items-center justify-center bg-muted/30 relative aspect-video">
+                                <BunlyImage
+                                    src={url}
                                     alt={`Attachment ${i + 1}`}
-                                    className="object-contain max-h-[500px] w-full"
+                                    fill
+                                    className="object-contain"
                                     loading="lazy"
                                 />
                             </div>
@@ -389,7 +390,7 @@ export function CommunityCard({ post, channelOverride }: CommunityCardProps) {
                     {post.content && (
                         <div className="mb-1">
                             <p className={cn(
-                                "text-[15px] leading-relaxed whitespace-pre-wrap break-words text-foreground/90",
+                                "text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/90",
                                 !expanded && contentIsLong && "line-clamp-6"
                             )}>
                                 {parseContent(post.content)}

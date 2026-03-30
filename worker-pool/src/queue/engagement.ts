@@ -1,6 +1,7 @@
 import os from "os";
 import { prisma } from "../lib/prisma.js";
 import redis from "../lib/redis.js";
+import { NotificationService } from "../services/NotificationService.js";
 import {
     RedisStreamConsumer,
     type StreamMessage,
@@ -463,43 +464,22 @@ async function handleEngagementBatch(
         }) as VideoNotifRow[];
         const videoMap = new Map(videos.map((v) => [v.id, v]));
 
-        // [SETTINGS FIX] Fetch explicit opt-out preferences natively before spraying notifications
-        const ownerUserIds = [...new Set(videos.map((v) => v.channels.userId))];
-        const userSettings = await prisma.notification_settings.findMany({
-            where: { userId: { in: ownerUserIds } },
-            select: { userId: true, likes: true },
-        });
-        const settingsMap = new Map(userSettings.map((s) => [s.userId, s]));
-
         const notifOps: Promise<unknown>[] = [];
         for (const like of newLikes) {
             const video = videoMap.get(like.videoId);
             if (!video || video.channels.userId === like.userId) continue;
-            
-            // Abort notification broadcast if user explicitly opted out globally
-            const userPrefs = settingsMap.get(video.channels.userId);
-            if (userPrefs && userPrefs.likes === false) continue;
 
             notifOps.push(
-                prisma.notifications.create({
-                    data: {
-                        userId: video.channels.userId,
-                        actorId: like.userId,
-                        type: "VIDEO_LIKE",
-                        title: "New Like",
-                        message: `liked your video`,
-                        videoId: like.videoId,
-                        thumbnailUrl: video.thumbnailUrl,
-                        actionUrl: `/watch/${like.videoId}`,
-                        groupKey: `VIDEO_LIKE:${like.videoId}:${new Date().toISOString().slice(0, 10)}`,
-                    },
-                    include: {
-                        user_notifications_actorIdTouser: {
-                            select: { id: true, name: true, image: true },
-                        },
-                    },
-                }).then((record) => {
-                    return redis.publish(`user:notifications:${record.userId}`, JSON.stringify(record)).catch(() => {});
+                NotificationService.notify({
+                    userId: video.channels.userId,
+                    actorId: like.userId,
+                    type: "VIDEO_LIKE",
+                    title: "New Like",
+                    message: `liked your video`,
+                    videoId: like.videoId,
+                    thumbnailUrl: video.thumbnailUrl || undefined,
+                    actionUrl: `/watch/${like.videoId}`,
+                    groupKey: `VIDEO_LIKE:${like.videoId}:${new Date().toISOString().slice(0, 10)}`,
                 }).catch((e: unknown) =>
                     console.warn("[EngagementWorker] Notification error:", e),
                 ),
@@ -772,33 +752,20 @@ async function handleSubscriptionBatch(
                 });
 
                 // [SETTINGS FIX] Respect user's UI toggle preference preventing UI spam
+                // Fire notification using consolidated NotificationService
                 if (channel && channel.userId !== subscriberId) {
-                    const settings = await prisma.notification_settings.findUnique({
-                        where: { userId: channel.userId },
-                        select: { subscribers: true },
-                    });
-
-                    if (!settings || settings.subscribers !== false) {
-                        await prisma.notifications.create({
-                        data: {
-                            userId: channel.userId,
-                            actorId: subscriberId,
-                            type: "NEW_SUBSCRIBER",
-                            title: "New Subscriber",
-                            message: "subscribed to your channel",
-                            channelId,
-                            actionUrl: `/@${channel.handle}`,
-                            groupKey: `NEW_SUBSCRIBER:${channelId}:${new Date().toISOString().slice(0, 10)}`,
-                        },
-                        include: {
-                            user_notifications_actorIdTouser: {
-                                select: { id: true, name: true, image: true },
-                            },
-                        },
-                    }).then((record) => {
-                        return redis.publish(`user:notifications:${record.userId}`, JSON.stringify(record)).catch(() => {});
-                    });
-                    }
+                    await NotificationService.notify({
+                        userId: channel.userId,
+                        actorId: subscriberId,
+                        type: "NEW_SUBSCRIBER",
+                        title: "New Subscriber",
+                        message: "subscribed to your channel",
+                        channelId,
+                        actionUrl: `/@${channel.handle}`,
+                        groupKey: `NEW_SUBSCRIBER:${channelId}:${new Date().toISOString().slice(0, 10)}`,
+                    }).catch((e: unknown) =>
+                        console.warn("[SubscriptionWorker] Notification error:", e),
+                    );
                 }
             } else {
                 // UNSUBSCRIBE: delete + recount atomically

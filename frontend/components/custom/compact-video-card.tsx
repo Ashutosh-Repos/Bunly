@@ -1,8 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
-import { getMediaUrl, formatDuration } from "@/lib/utils";
+import { formatDuration, cn } from "@/lib/utils";
 import { IconVideo } from "@tabler/icons-react";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 export interface CompactVideoProp {
     id: string;
@@ -26,12 +26,12 @@ export function CompactVideoCard({ video }: { video: CompactVideoProp }) {
         <Link href={`/watch/${video.id}`} className="flex gap-2 group cursor-pointer w-full">
             <div className="w-[160px] aspect-video bg-muted/40 rounded-lg shrink-0 relative overflow-hidden ring-1 ring-border/10 group-hover:ring-primary/50 transition-all">
                 {video.thumbnailUrl ? (
-                    <Image
-                        src={getMediaUrl(video.thumbnailUrl)}
+                    <BunlyImage
+                        src={video.thumbnailUrl}
                         alt={video.title}
                         fill
                         className="object-cover"
-                        sizes="160px"
+                        sizes="(max-width: 160px) 100vw, 160px"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">

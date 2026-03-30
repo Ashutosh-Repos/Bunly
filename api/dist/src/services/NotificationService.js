@@ -143,43 +143,6 @@ export class NotificationService {
             });
         });
     }
-    /**
-     * TTL cleanup: delete old notifications to keep the table bounded.
-     * - Read notifications older than 30 days
-     * - Hidden (dismissed) notifications older than 7 days
-     * Call from a daily cron or setInterval in the worker.
-     */
-    static cleanupOldNotifications() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            try {
-                const [readResult, hiddenResult] = yield prisma.$transaction([
-                    prisma.notifications.deleteMany({
-                        where: {
-                            isRead: true,
-                            createdAt: { lt: thirtyDaysAgo },
-                        },
-                    }),
-                    prisma.notifications.deleteMany({
-                        where: {
-                            isHidden: true,
-                            createdAt: { lt: sevenDaysAgo },
-                        },
-                    }),
-                ]);
-                const total = readResult.count + hiddenResult.count;
-                if (total > 0) {
-                    console.log(`[NotificationCleanup] Deleted ${readResult.count} old read + ${hiddenResult.count} hidden notifications`);
-                }
-            }
-            catch (err) {
-                console.error("[NotificationCleanup] Failed:", err);
-            }
-        });
-    }
 }
 NotificationService.CHANNEL_PREFIX = "user:notifications";
 /**

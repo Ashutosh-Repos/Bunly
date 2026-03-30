@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getMediaUrl } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { IconCircleCheckFilled } from "@tabler/icons-react";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 export interface AuthorDTO {
     id: string;
@@ -23,7 +23,12 @@ export function AuthorAvatar({ author, className = "w-9 h-9", disableLink = fals
 
     const Content = (
         <Avatar className={`${className} border shadow-sm`}>
-            <AvatarImage src={getMediaUrl(author?.image)} alt={author?.name ?? ""} />
+            <BunlyImage 
+                src={author?.image} 
+                alt={author?.name ?? ""} 
+                fill 
+                className="rounded-full object-cover"
+            />
             <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
                 {nameFallback}
             </AvatarFallback>

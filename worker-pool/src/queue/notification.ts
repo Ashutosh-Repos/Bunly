@@ -1,6 +1,6 @@
 import os from "os";
 import { prisma } from "../lib/prisma.js";
-import redis from "../lib/redis.js";
+import { NotificationService } from "../services/NotificationService.js";
 import {
     RedisStreamConsumer,
     type StreamMessage,
@@ -22,35 +22,8 @@ async function handleNotificationBatch(
             const raw = fields[1];
             const data = JSON.parse(raw);
             
-            // Standardize Prisma insert data
-            const notificationData = {
-                userId: data.userId,
-                actorId: data.actorId,
-                type: data.type,
-                title: data.title,
-                message: data.message,
-                videoId: data.videoId,
-                commentId: data.commentId,
-                channelId: data.channelId,
-                thumbnailUrl: data.thumbnailUrl,
-                actionUrl: data.actionUrl,
-                metadata: data.metadata || undefined,
-                groupKey: data.groupKey || undefined,
-            };
-
-            const record = await prisma.notifications.create({
-                data: notificationData,
-                include: {
-                    user_notifications_actorIdTouser: {
-                        select: { id: true, name: true, image: true },
-                    },
-                },
-            });
-
-            // Rehydrate the web UI proactively via native Redis Pub/Sub
-            await redis.publish(`user:notifications:${record.userId}`, JSON.stringify(record)).catch((e) => {
-                console.warn("[NotificationWorker] PubSub Drop:", e);
-            });
+            // Dispatch via consolidated service to handle aggregation & settings
+            await NotificationService.notify(data);
 
         } catch (err) {
             console.warn("[NotificationWorker] Failed to process message:", id, err);

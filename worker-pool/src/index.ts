@@ -1,4 +1,5 @@
 import "./env.js"; // Validate env first — fails fast if vars missing
+import http from "node:http";
 
 import { startEngagementWorkers } from "./queue/engagement.js";
 import { startEmailWorker } from "./queue/email.js";
@@ -24,6 +25,22 @@ registerRepeatableJobs().catch((err) => {
 
 console.log("[Worker Pool] ✅ All workers running");
 
+// ─── Health Check Server (Port 4001) ──────────────────────────────────────────
+
+const healthServer = http.createServer((req, res) => {
+    if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }));
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+});
+
+healthServer.listen(4001, () => {
+    console.log("[Worker Pool] 💓 Health check server listening on port 4001");
+});
+
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 
 let isShuttingDown = false;
@@ -47,6 +64,9 @@ const gracefulShutdown = async (signal: string) => {
     // 4. Close shared Redis + Prisma
     await redis.quit().catch(() => {});
     await prisma.$disconnect().catch(() => {});
+
+    // 5. Close Health Check Server
+    healthServer.close();
 
     console.log("[Worker Pool] ✅ Shutdown complete. Goodbye!");
     process.exit(0);

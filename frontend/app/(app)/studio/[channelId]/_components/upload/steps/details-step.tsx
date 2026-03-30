@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc-client";
 import { useUpload } from "@/components/providers/upload-provider";
-import { getMediaUrl } from "@/lib/utils";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 export function DetailsStep() {
     const { control, setValue, watch } = useFormContext();
@@ -113,13 +113,13 @@ export function DetailsStep() {
                         <div 
                             className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ring-2 ring-primary border-primary`}
                         >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src={customThumbnailUrl || getMediaUrl(currentThumbnail)} 
+                            <BunlyImage 
+                                src={customThumbnailUrl || currentThumbnail} 
                                 alt="Custom Thumbnail" 
-                                className="object-cover w-full h-full" 
+                                fill
+                                className="object-cover" 
                             />
-                            <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                            <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5 z-20">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                             </div>
                         </div>
@@ -132,14 +132,14 @@ export function DetailsStep() {
                                 onClick={() => setValue("thumbnailUrl", key)}
                                 className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ${currentThumbnail === key ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'}`}
                             >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img 
-                                    src={getMediaUrl(key)} 
+                                <BunlyImage 
+                                    src={key} 
                                     alt={`Thumbnail option ${i + 1}`} 
-                                    className="object-cover w-full h-full"
+                                    fill
+                                    className="object-cover"
                                 />
                                 {currentThumbnail === key && (
-                                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5 z-20">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                                     </div>
                                 )}

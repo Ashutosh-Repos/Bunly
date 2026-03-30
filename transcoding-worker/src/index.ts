@@ -1,4 +1,5 @@
 import "./env.js"; // Validate env first — fails fast if vars missing
+import http from "node:http";
 
 import { setupWorker } from "./queue/worker.js";
 import { closeQueues } from "./queue/definitions.js";
@@ -9,6 +10,22 @@ console.log("[Transcoding Worker] 🚀 Starting...");
 const worker = setupWorker();
 
 console.log("[Transcoding Worker] ✅ Ready");
+
+// ─── Health Check Server (Port 4002) ──────────────────────────────────────────
+
+const healthServer = http.createServer((req, res) => {
+    if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }));
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+});
+
+healthServer.listen(4002, () => {
+    console.log("[Transcoding Worker] 💓 Health check server listening on port 4002");
+});
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 

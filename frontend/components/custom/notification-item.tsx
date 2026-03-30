@@ -20,9 +20,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getMediaUrl, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import Image from "next/image";
+import { BunlyImage } from "@/components/custom/bunly-image";
 
 // Map types to Tabler icons and Shadcn contextual colors
 const NOTIFICATION_TYPE_CONFIG: Record<
@@ -131,7 +131,12 @@ export const NotificationItem = memo(function NotificationItem({
             <div className="relative shrink-0">
                 {hasActor ? (
                     <Avatar className="h-12 w-12 xl:h-14 xl:w-14 border-2 border-background/50 shadow-sm transition-transform group-hover:scale-105">
-                        <AvatarImage src={getMediaUrl(actor?.image)} />
+                        <BunlyImage 
+                            src={actor?.image} 
+                            alt={actor?.name ?? "User"}
+                            fill
+                            className="rounded-full object-cover"
+                        />
                         <AvatarFallback className="bg-muted font-bold text-lg select-none">
                             {actor?.name?.[0]?.toUpperCase() || "?"}
                         </AvatarFallback>
@@ -191,17 +196,12 @@ export const NotificationItem = memo(function NotificationItem({
 
             {/* Right side: Thumbnail */}
             {notification.thumbnailUrl && (
-                <div className="shrink-0 relative overflow-hidden rounded-lg ml-2 border border-border/20 shadow-sm transition-transform group-hover:scale-105 bg-muted">
-                    <Image
-                        src={getMediaUrl(notification.thumbnailUrl)}
+                <div className="shrink-0 relative overflow-hidden rounded-lg ml-2 border border-border/20 shadow-sm transition-transform group-hover:scale-105 bg-muted w-24 h-16 xl:w-[114px] xl:h-[72px]">
+                    <BunlyImage
+                        src={notification.thumbnailUrl}
                         alt="Thumbnail"
-                        width={140}
-                        height={80}
-                        className="h-16 w-24 xl:h-[72px] xl:w-[114px] object-cover"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display =
-                                "none";
-                        }}
+                        fill
+                        className="object-cover"
                     />
                 </div>
             )}

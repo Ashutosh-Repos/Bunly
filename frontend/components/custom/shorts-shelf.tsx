@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { IconFlame } from "@tabler/icons-react";
-import { getMediaUrl } from "@/lib/utils";
+import { BunlyImage } from "@/components/custom/bunly-image";
 import type { VideoGridVideo } from "@/components/custom/video-grid";
 import useEmblaCarousel from "embla-carousel-react";
 
@@ -41,11 +39,11 @@ export function ShortsShelf({ shorts }: ShortsShelfProps) {
                         >
                             <div className="relative aspect-9/16 rounded-xl overflow-hidden bg-muted/30 ring-1 ring-border/10 group-hover:ring-primary/30 group-hover:shadow-lg group-hover:shadow-primary/5 transition-all">
                                 {short.thumbnailUrl ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img
-                                        src={getMediaUrl(short.thumbnailUrl)}
+                                    <BunlyImage
+                                        src={short.thumbnailUrl}
                                         alt={short.title}
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        className="object-cover"
                                         loading="lazy"
                                     />
                                 ) : (
