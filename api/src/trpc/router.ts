@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { type Context } from "./context.js";
 import { standardCursorPaginationSchema } from "./cursor.js";
+import redis from "../lib/redis.js";
 
 const t = initTRPC.context<Context>().create({
     transformer: superjson,
@@ -72,34 +73,27 @@ const enforceUserIsAdmin = t.middleware(({ ctx, next }) => {
  * Reusable middleware that enforces user is owner of the channel
  */
 const enforceChannelOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ channelId: z.string() }).safeParse(rawInput);
-
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "channelId is required in input to use channelProcedure",
-            });
-        }
+        const { channelId } = input as { channelId: string };
 
         const channel = await prisma.channels.findUnique({
-            where: { id: result.data.channelId },
+            where: { id: channelId },
         });
 
-        if (!channel) {
+        if (!channel || channel.deletedAt !== null) {
             throw new TRPCError({
                 code: "NOT_FOUND",
-                message: "Channel not found",
+                message: "Channel not found or has been deleted",
             });
         }
 
-        if (channel.userId !== ctx.session.user.id) {
+        const isOwner = channel.userId === ctx.session.user.id;
+        
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You are not the owner of this channel",
@@ -110,32 +104,23 @@ const enforceChannelOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 channel,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },
 );
 
 const enforceVideoOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ videoId: z.string() }).safeParse(rawInput);
-
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "videoId is required in input to use videoProcedure",
-            });
-        }
+        const { videoId } = input as { videoId: string };
 
         const video = await prisma.videos.findUnique({
-            where: { id: result.data.videoId },
-            include: { channels: true }, // Needed to check channel ownership
+            where: { id: videoId },
+            include: { channels: true },
         });
 
         if (!video || video.deletedAt !== null) {
@@ -145,7 +130,9 @@ const enforceVideoOwnership = t.middleware(
             });
         }
 
-        if (video.channels.userId !== ctx.session.user.id) {
+        const isOwner = video.channels.userId === ctx.session.user.id;
+
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You do not have permission to manage this video",
@@ -156,30 +143,22 @@ const enforceVideoOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 video,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },
 );
+
 const enforcePlaylistOwnership = t.middleware(
-    async ({ ctx, next, getRawInput }) => {
+    async ({ ctx, next, input }) => {
         if (!ctx.session || !ctx.session.user) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const rawInput = await getRawInput();
-        const result = z.object({ playlistId: z.string() }).safeParse(rawInput);
-
-        if (!result.success) {
-            throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                    "playlistId is required in input to use playlistProcedure",
-            });
-        }
+        const { playlistId } = input as { playlistId: string };
 
         const playlist = await prisma.playlists.findUnique({
-            where: { id: result.data.playlistId },
+            where: { id: playlistId },
         });
 
         if (!playlist) {
@@ -189,7 +168,9 @@ const enforcePlaylistOwnership = t.middleware(
             });
         }
 
-        if (playlist.userId !== ctx.session.user.id) {
+        const isOwner = playlist.userId === ctx.session.user.id;
+
+        if (!isOwner) {
             throw new TRPCError({
                 code: "FORBIDDEN",
                 message: "You do not have permission to manage this playlist",
@@ -200,15 +181,47 @@ const enforcePlaylistOwnership = t.middleware(
             ctx: {
                 ...ctx,
                 playlist,
-                session: ctx.session, // explicitly maintain non-nullable typing
+                session: ctx.session,
             },
         });
     },
 );
 
+import { AuditService } from "../services/AuditService.js";
+import prisma from "../lib/prisma.js";
+import { z } from "zod";
+
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 
 export const adminProcedure = t.procedure.use(enforceUserIsAdmin);
+
+/**
+ * Admin procedure that injects an `audit` function into the context
+ * for easy logging of administrative actions with IP/UserAgent.
+ */
+export const auditedAdminProcedure = adminProcedure.use(async ({ ctx, next }) => {
+    const audit = (
+        action: string,
+        resource: string,
+        resourceId: string,
+        opts?: {
+            reason?: string;
+            metadata?: Record<string, unknown>;
+            targetUserId?: string;
+        },
+    ) =>
+        AuditService.log({
+            actorId: ctx.session.user.id,
+            action,
+            resource,
+            resourceId,
+            ipAddress: ctx.req?.ip,
+            userAgent: ctx.req?.headers ? ctx.req.headers["user-agent"] : undefined,
+            ...opts,
+        });
+
+    return next({ ctx: { ...ctx, audit } });
+});
 
 export const channelProcedure = protectedProcedure
     .input(z.object({ channelId: z.string() }))
@@ -221,39 +234,3 @@ export const playlistProcedure = protectedProcedure
 export const videoProcedure = protectedProcedure
     .input(z.object({ videoId: z.string() }))
     .use(enforceVideoOwnership);
-
-import { authRouter } from "./routers/auth.js";
-import { userRouter } from "./routers/user.js";
-import { channelRouter } from "./routers/channel.js";
-import { playlistRouter } from "./routers/playlist.js";
-import { videoRouter } from "./routers/video.js";
-import { commentRouter } from "./routers/comment.js";
-import { feedRouter } from "./routers/feed.js";
-import { historyRouter } from "./routers/history.js";
-import { notificationRouter } from "./routers/notification.js";
-import { searchRouter } from "./routers/search.js";
-import { engagementRouter } from "./routers/engagement.js";
-import prisma from "../lib/prisma.js";
-import { z } from "zod";
-
-/**
- * App Router containing all sub-routers
- */
-export const appRouter = router({
-    auth: authRouter,
-    user: userRouter,
-    channel: channelRouter,
-    playlist: playlistRouter,
-    video: videoRouter,
-    comment: commentRouter,
-    feed: feedRouter,
-    history: historyRouter,
-    notification: notificationRouter,
-    search: searchRouter,
-    engagement: engagementRouter,
-    health: publicProcedure.query(() => {
-        return { status: "ok", timestamp: new Date().toISOString() };
-    }),
-});
-
-export type AppRouter = typeof appRouter;

@@ -27,6 +27,13 @@ model account {
   @@index([userId])
 }
 
+model jwks {
+  id         String   @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime @default(now())
+}
+
 model audit_logs {
   id                                 String   @id @default(cuid())
   actorId                            String?
@@ -242,7 +249,6 @@ model playlists {
   title           String              @db.VarChar(150)
   description     String?
   visibility      VideoVisibility     @default(PUBLIC)
-  thumbnailUrl    String?
   isSystem        Boolean             @default(false)
   systemType      PlaylistSystemType?
   videoCount      Int                 @default(0)
@@ -326,6 +332,8 @@ model strikes {
   issuedAt                   DateTime   @default(now())
   expiresAt                  DateTime?
   appealed                   Boolean    @default(false)
+  appealedAt                 DateTime?
+  appealNote                 String?
   revokedAt                  DateTime?
   adminId                    String?
   reports                    reports[]

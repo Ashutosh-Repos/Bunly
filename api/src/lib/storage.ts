@@ -33,7 +33,7 @@ const s3Client = new S3Client({
 });
 
 // Public endpoint for browser-facing presigned URLs
-// On Railway: PUBLIC_S3_URL = "https://bucket-xxx.up.railway.app"
+// On Railway: PUBLIC_S3_URL = "https://t3.storageapi.dev"
 // Locally: falls back to the same internal endpoint
 const publicEndpoint = config.s3.publicUrl || internalEndpoint;
 
@@ -177,6 +177,22 @@ export async function getPresignedPartUrl(
     // Expire in 1 hour (plenty for a 5MB chunk)
     // Use signerClient so the URL contains the public hostname
     return await getSignedUrl(signerClient, command, { expiresIn: 3600 });
+}
+
+/**
+ * Get a Presigned URL for viewing/downloading an object (GET)
+ */
+export async function getPresignedGetUrl(
+    key: string,
+    expiresIn: number = 3600
+): Promise<string> {
+    const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+    });
+
+    // Use signerClient so the URL contains the public hostname
+    return await getSignedUrl(signerClient, command, { expiresIn });
 }
 
 /**

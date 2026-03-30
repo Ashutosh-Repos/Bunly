@@ -8,12 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { z } from "zod";
-import { router, protectedProcedure } from "../router.js";
+import { router, protectedProcedure, publicProcedure } from "../router.js";
 import { CommentService } from "../../services/CommentService";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 export const commentRouter = router({
-    list: protectedProcedure
+    list: publicProcedure
         .input(z.object({
         videoId: z.string(),
         sortBy: z.enum(["TOP", "NEWEST"]).optional().default("NEWEST"),
@@ -21,9 +21,10 @@ export const commentRouter = router({
         limit: z.number().min(1).max(50).optional().default(20),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
+        var _b, _c, _d;
         const { videoId, sortBy, cursor, limit } = input;
-        const userId = ctx.session.user.id;
-        return CommentService.getComments(videoId, sortBy, cursor, limit, userId);
+        const userId = (_d = (_c = (_b = ctx.session) === null || _b === void 0 ? void 0 : _b.user) === null || _c === void 0 ? void 0 : _c.id) !== null && _d !== void 0 ? _d : "";
+        return (yield CommentService.getComments(videoId, sortBy, cursor, limit, userId));
     })),
     getById: protectedProcedure
         .input(z.object({ id: z.string() }))
@@ -44,10 +45,9 @@ export const commentRouter = router({
         limit: z.number().min(1).max(50).optional().default(10),
     }))
         .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ input, ctx }) {
-        var _b;
         const { parentId, cursor, limit } = input;
-        const userId = (_b = ctx.session.user) === null || _b === void 0 ? void 0 : _b.id;
-        return CommentService.getReplies(parentId, cursor, limit, userId);
+        const userId = ctx.session.user.id;
+        return (yield CommentService.getReplies(parentId, cursor, limit, userId));
     })),
     create: protectedProcedure
         .input(z.object({
@@ -57,8 +57,10 @@ export const commentRouter = router({
     }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { videoId, content, parentId } = input;
-        const comment = yield CommentService.createComment(ctx.session.user.id, videoId, content, parentId);
-        return comment;
+        // CommentService.createComment handles:
+        // - DB insert + cache invalidation + notifications
+        // - Streaming commentCount/replyCount increments to CommentCountWorker
+        return CommentService.createComment(ctx.session.user.id, videoId, content, parentId);
     })),
     toggleLike: protectedProcedure
         .input(z.object({ commentId: z.string(), videoId: z.string() }))
@@ -76,7 +78,7 @@ export const commentRouter = router({
             });
         }
         // Check current state (Hybrid Read)
-        let current = yield CommentService.getUserReaction(userId, commentId);
+        const current = yield CommentService.getUserReaction(userId, commentId);
         let action = "LIKE";
         if (current === "LIKE") {
             action = "REMOVE";
@@ -102,7 +104,7 @@ export const commentRouter = router({
                 message: "Comment not found or does not belong to this video",
             });
         }
-        let current = yield CommentService.getUserReaction(userId, commentId);
+        const current = yield CommentService.getUserReaction(userId, commentId);
         let action = "DISLIKE";
         if (current === "DISLIKE") {
             action = "REMOVE";
@@ -113,9 +115,48 @@ export const commentRouter = router({
         yield CommentService.addReaction(userId, commentId, action, videoId);
         return { status: action };
     })),
+    edit: protectedProcedure
+        .input(z.object({
+        commentId: z.string(),
+        content: z.string().min(1).max(2000),
+    }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.editComment(input.commentId, ctx.session.user.id, input.content);
+    })),
+    pin: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.pinComment(input.commentId, ctx.session.user.id, input.videoId);
+    })),
+    heart: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        return CommentService.heartComment(input.commentId, ctx.session.user.id, input.videoId);
+    })),
     delete: protectedProcedure
         .input(z.object({ commentId: z.string() }))
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        // CommentService.deleteComment handles:
+        // - Soft delete + cache invalidation
+        // - Streaming commentCount decrement to CommentCountWorker
         return CommentService.deleteComment(input.commentId, ctx.session.user.id);
+    })),
+    getChannelComments: protectedProcedure
+        .input(z.object({
+        channelId: z.string(),
+        cursor: z.string().nullish(),
+        limit: z.number().min(1).max(50).optional().default(20),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const { channelId, cursor, limit } = input;
+        // First verify user owns the channel
+        const channel = yield prisma.channels.findUnique({
+            where: { id: channelId },
+            select: { userId: true }
+        });
+        if (!channel || channel.userId !== ctx.session.user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
+        }
+        return yield CommentService.getChannelComments(channelId, cursor !== null && cursor !== void 0 ? cursor : null, limit, ctx.session.user.id);
     })),
 });

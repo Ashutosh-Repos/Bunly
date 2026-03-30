@@ -9,10 +9,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { Queue } from "bullmq";
 import { bullMQRedis } from "./redis.js";
+import config from "./config.js";
+import { env } from "../env.js";
 // ─── Build-time detection ────────────────────────────────────────────────────
 // Next.js sets NEXT_PHASE during build — skip heavy init during page collection
-const isBuildTime = process.env.NEXT_PHASE === "phase-production-build" ||
-    (!process.env.BREVO_API_KEY && !process.env.REDIS_URL);
+const isBuildTime = env.NEXT_PHASE === "phase-production-build" ||
+    (!config.email.brevoApiKey && !config.redis.url);
 // ─── BullMQ Queue + Worker (non-blocking) ────────────────────────────────────
 // Uses Redis for persistent, retryable email queue.
 // If Redis is unavailable, falls back to direct (blocking) send.
@@ -22,7 +24,7 @@ let emailQueue = null;
 function getQueue() {
     if (emailQueue)
         return emailQueue;
-    if (!process.env.REDIS_URL || isBuildTime)
+    if (!config.redis.url || isBuildTime)
         return null;
     try {
         emailQueue = new Queue(QUEUE_NAME, {
@@ -42,7 +44,7 @@ function getQueue() {
     }
 }
 // ─── Email Service ───────────────────────────────────────────────────────────
-const DEFAULT_FROM = process.env.EMAIL_FROM || "clashutosh04@gmail.com";
+const DEFAULT_FROM = config.email.from;
 class EmailService {
     constructor() {
         // Queue is initialized lazily when needed
@@ -64,11 +66,41 @@ class EmailService {
                     return;
                 }
                 catch (err) {
-                    console.warn("[Email] Queue add failed:", err);
+                    console.warn("[Email] Queue add failed, falling back to direct send:", err);
                 }
             }
             else {
-                console.warn("[Email] No queue available, skipping email send");
+                console.warn("[Email] No queue available, falling back to direct send");
+            }
+            // Direct Execution Fallback
+            if (!config.email.brevoApiKey) {
+                console.warn("[Email] No Brevo API Key configured, intentionally dropping email.");
+                return;
+            }
+            try {
+                const res = yield fetch("https://api.brevo.com/v3/smtp/email", {
+                    method: "POST",
+                    headers: {
+                        "api-key": config.email.brevoApiKey,
+                        "content-type": "application/json",
+                        accept: "application/json",
+                    },
+                    body: JSON.stringify({
+                        sender: { name: config.appName, email: job.from },
+                        to: [{ email: job.to }],
+                        subject: job.subject,
+                        htmlContent: job.html,
+                    }),
+                    signal: AbortSignal.timeout(10000),
+                });
+                if (!res.ok) {
+                    const result = (yield res.json().catch(() => ({})));
+                    throw new Error(result.code ? `Brevo ${result.code}: ${result.message}` : `Brevo HTTP ${res.status}`);
+                }
+                console.log(`[Email] ✅ Direct delivery successful: "${subject}"`);
+            }
+            catch (fallbackErr) {
+                console.error(`[Email] ❌ Direct delivery failed for "${subject}":`, fallbackErr.message);
             }
         });
     }
@@ -103,10 +135,10 @@ class EmailService {
             yield this.queueEmail(to, "Verify Your Email", generateHtml({
                 name,
                 headline: "VERIFY YOUR EMAIL",
-                body: `Welcome to Youtube! <strong>We're excited to have you.</strong><br>Click the button below to verify your email address:`,
+                body: `Welcome to ${config.appName}! <strong>We're excited to have you.</strong><br>Click the button below to verify your email address:`,
                 buttonText: "Verify Email",
                 buttonUrl: url,
-                footerText: `For your security, this link will expire in 1 hour. If you didn't sign up for Youtube, you can ignore this email.`,
+                footerText: `For your security, this link will expire in 1 hour. If you didn't sign up for ${config.appName}, you can ignore this email.`,
             }));
         });
     }
@@ -115,7 +147,7 @@ class EmailService {
             yield this.queueEmail(to, "Verify Account Deletion", generateHtml({
                 name,
                 headline: "DELETE YOUR ACCOUNT?",
-                body: `We received a request to permanently delete your Youtube account. <strong>This action is irreversible.</strong><br>If you're sure, click the button below to verify:`,
+                body: `We received a request to permanently delete your ${config.appName} account. <strong>This action is irreversible.</strong><br>If you're sure, click the button below to verify:`,
                 buttonText: "Verify Deletion",
                 buttonUrl: url,
                 footerText: `If you didn't request to delete your account, please ignore this email and secure your account immediately.`,
@@ -124,14 +156,12 @@ class EmailService {
     }
     sendUserJoiningMail(to, name) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.queueEmail(to, "Welcome to Youtube", generateHtml({
+            yield this.queueEmail(to, `Welcome to ${config.appName}`, generateHtml({
                 name,
                 headline: `WELCOME ${name}!`,
-                body: `Thank you for joining the Youtube family! We're thrilled to have you here. <br>Start exploring and sharing your passion with the world.`,
-                buttonText: "Go to Youtube",
-                buttonUrl: process.env.NEXT_PUBLIC_APP_URL ||
-                    process.env.APP_URL ||
-                    "#",
+                body: `Thank you for joining the ${config.appName} family! We're thrilled to have you here. <br>Start exploring and sharing your passion with the world.`,
+                buttonText: `Go to ${config.appName}`,
+                buttonUrl: config.appUrl,
                 footerText: `If you have any questions, our team is here to help. Just reply to this email or visit our Support Center.`,
             }));
         });
@@ -199,9 +229,9 @@ function generateHtml({ name, headline, body, buttonText, buttonUrl, footerText,
                                 <p class="body-text" style="font-size: 14px; color: #666666;">${footerText}</p>
                             </div>
                             <div style="margin-top: 40px; border-top: 1px solid #eeeeee; padding-top: 20px;">
-                                <p class="body-text" style="margin-bottom: 5px;">Thanks for being part of the Youtube family!</p>
+                                <p class="body-text" style="margin-bottom: 5px;">Thanks for being part of the ${config.appName} family!</p>
                                 <p style="font-size: 16px; font-weight: bold; margin: 0;">Stay Creative,</p>
-                                <p style="font-size: 16px; font-weight: bold; margin: 0;">The Youtube Team</p>
+                                <p style="font-size: 16px; font-weight: bold; margin: 0;">The ${config.appName} Team</p>
                             </div>
                         </td>
                     </tr>

@@ -1,0 +1,70 @@
+services:
+  # ─── PostgreSQL 16 ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: bunly-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bunly
+    volumes:
+      - ./.docker-data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis 7 ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bunly-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - ./.docker-data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3-compatible Object Storage) ───────────────────────────
+  # Runs in PRIVATE mode — no public bucket policies.
+  # Matches Railway Bucket behavior exactly.
+  minio:
+    image: minio/minio
+    container_name: bunly-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./.docker-data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO Init (one-shot bucket creation) ──────────────────────────
+  minio-setup:
+    image: minio/mc
+    container_name: bunly-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: /scripts/init-minio.sh
+    volumes:
+      - ./scripts/init-minio.sh:/scripts/init-minio.sh:ro

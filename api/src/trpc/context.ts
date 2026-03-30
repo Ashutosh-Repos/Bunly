@@ -17,7 +17,8 @@ export async function createContext({ req, res }: CreateFastifyContextOptions) {
         }
     });
 
-    // Pass Fastify's raw IP to Better-Auth rate limiting via standard proxy header
+    // Pass Fastify's raw IP to Better-Auth rate limiting
+    // Note: Fastify's req.ip is already processed by its 'trustProxy' setting
     if (req.ip) {
         headers.set("X-Forwarded-For", req.ip);
     }

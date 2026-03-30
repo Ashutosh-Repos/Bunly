@@ -6,7 +6,7 @@ import { TRPCError } from "@trpc/server";
 
 export type CommentSort = "TOP" | "NEWEST";
 
-interface CommentItem {
+export interface CommentItem {
     id: string;
     videoId: string;
     userId: string;
@@ -17,22 +17,20 @@ interface CommentItem {
     replyCount: number;
     isEdited: boolean;
     isPinned: boolean;
-    createdAt: Date;
-    user: {
+    isHearted: boolean;
+    createdAt: Date | string;
+    videos?: any;
+    author: {
         id: string;
-        name: string | null;
+        name: string;
+        handle: string;
         image: string | null;
-        channels: {
-            handle: string;
-            name: string;
-            image: string | null;
-            isVerified: boolean;
-        }[];
+        isVerified: boolean;
     };
-    userReaction?: "LIKE" | "DISLIKE" | null;
+    userReaction?: "LIKE" | "DISLIKE" | "REMOVE" | null;
 }
 
-interface CommentListResult {
+export interface CommentListResult {
     items: CommentItem[];
     nextCursor: string | null;
 }
@@ -49,6 +47,71 @@ export class CommentService {
         engagementStream: "queue:comment-engagement",
         countStream: "queue:comment-count",
     };
+    
+    /**
+     * Centralized mapper for Comment -> CommentItem
+     */
+    private static mapToCommentItem(c: any): CommentItem {
+        const channel = c.user?.channels?.[0];
+        return {
+            id: c.id,
+            videoId: c.videoId,
+            userId: c.userId,
+            parentId: c.parentId,
+            content: c.content,
+            likeCount: c.likeCount,
+            dislikeCount: c.dislikeCount,
+            replyCount: c.replyCount,
+            isEdited: c.isEdited,
+            isPinned: c.isPinned,
+            isHearted: c.isHearted || false,
+            createdAt: c.createdAt,
+            author: {
+                id: channel?.id || c.user.id,
+                name: channel?.name || c.user.name || "Unknown User",
+                handle: channel?.handle || "",
+                image: channel?.image || c.user.image || null,
+                isVerified: channel?.isVerified || false,
+            },
+            videos: c.videos
+        };
+    }
+
+    /**
+     * Helper to verify if a user has read/write access to a video's comments.
+     */
+    private static async verifyVideoAccess(videoId: string, userId?: string) {
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: {
+                visibility: true,
+                processingStatus: true,
+                deletedAt: true,
+                channels: { select: { userId: true } },
+            },
+        });
+
+        if (!video || video.deletedAt) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Video not found",
+            });
+        }
+
+        const isOwner = video.channels?.userId === userId;
+        const isPubliclyAvailable =
+            (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+            video.processingStatus === "READY";
+
+        if (!isPubliclyAvailable && !isOwner) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Video not found or is unavailable",
+            });
+        }
+
+        return true;
+    }
 
     /**
      * Get comments for a video with tiered caching.
@@ -62,6 +125,8 @@ export class CommentService {
         limit: number = 20,
         userId?: string,
     ) {
+        // 0. Security Guard (Must run on every request regardless of cache)
+        await this.verifyVideoAccess(videoId, userId);
         // 1. Try Cache for First Page
         const isFirstPage = !cursor;
         const cacheKey = this.KEYS.list(videoId, sortBy);
@@ -132,6 +197,7 @@ export class CommentService {
                         image: true,
                         channels: {
                             select: {
+                                id: true,
                                 handle: true,
                                 name: true,
                                 image: true,
@@ -151,8 +217,10 @@ export class CommentService {
             nextCursor = nextItem?.id || null;
         }
 
+        const mappedComments: CommentItem[] = comments.map((c: any) => this.mapToCommentItem(c));
+
         const result: CommentListResult = {
-            items: comments as unknown as CommentItem[],
+            items: mappedComments,
             nextCursor,
         };
 
@@ -243,6 +311,7 @@ export class CommentService {
                         image: true,
                         channels: {
                             select: {
+                                id: true,
                                 handle: true,
                                 name: true,
                                 image: true,
@@ -261,8 +330,10 @@ export class CommentService {
             nextCursor = nextItem?.id || null;
         }
 
+        const mappedComments: CommentItem[] = comments.map((c: any) => this.mapToCommentItem(c));
+
         const result: CommentListResult = {
-            items: comments as unknown as CommentItem[],
+            items: mappedComments,
             nextCursor,
         };
 
@@ -300,6 +371,9 @@ export class CommentService {
         content: string,
         parentId?: string,
     ) {
+        // 0. Security Guard
+        await this.verifyVideoAccess(videoId, userId);
+
         let effectiveParentId = parentId;
 
         if (parentId) {
@@ -333,6 +407,7 @@ export class CommentService {
                         image: true,
                         channels: {
                             select: {
+                                id: true,
                                 handle: true,
                                 name: true,
                                 image: true,
@@ -441,6 +516,7 @@ export class CommentService {
                 commentId: comment.id,
                 thumbnailUrl: comment.videos.thumbnailUrl || undefined,
                 actionUrl: `/watch/${comment.videoId}?lc=${comment.id}`,
+                groupKey: `COMMENT:${comment.videoId}:${new Date().toISOString().slice(0, 10)}`,
             });
         }
 
@@ -470,6 +546,7 @@ export class CommentService {
                     commentId: comment.id,
                     thumbnailUrl: comment.videos.thumbnailUrl || undefined,
                     actionUrl: `/watch/${comment.videoId}?lc=${comment.id}`,
+                    groupKey: `COMMENT_REPLY:${comment.parentId}:${new Date().toISOString().slice(0, 10)}`,
                 });
             }
         }
@@ -668,6 +745,197 @@ export class CommentService {
     }
 
     /**
+     * Edit a comment's content.
+     */
+    static async editComment(commentId: string, userId: string, content: string) {
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { userId: true, videoId: true },
+        });
+
+        if (!comment || comment.userId !== userId) {
+            throw new Error("Unauthorized to edit this comment");
+        }
+
+        const updated = await prisma.comments.update({
+            where: { id: commentId },
+            data: { content, isEdited: true },
+        });
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(comment.videoId, "TOP"),
+            this.KEYS.list(comment.videoId, "NEWEST"),
+        );
+
+        return updated;
+    }
+
+    /**
+     * Pin or unpin a comment. Only the video owner can do this.
+     */
+    static async pinComment(commentId: string, callerUserId: string, videoId: string) {
+        // Verify caller owns the video
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: { channels: { select: { userId: true } } },
+        });
+
+        if (!video || video.channels.userId !== callerUserId) {
+            throw new Error("Unauthorized to pin comments on this video");
+        }
+
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { isPinned: true, videoId: true },
+        });
+
+        if (!comment || comment.videoId !== videoId) {
+            throw new Error("Comment does not belong to this video");
+        }
+
+        const newPinnedState = !comment.isPinned;
+
+        await prisma.$transaction([
+            // Unpin all other comments for this video
+            prisma.comments.updateMany({
+                where: { videoId, isPinned: true },
+                data: { isPinned: false },
+            }),
+            // Set new pinned state
+            prisma.comments.update({
+                where: { id: commentId },
+                data: { isPinned: newPinnedState },
+            }),
+        ]);
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(videoId, "TOP"),
+            this.KEYS.list(videoId, "NEWEST"),
+        );
+
+        return { isPinned: newPinnedState };
+    }
+
+    /**
+     * Heart or unheart a comment. Only the video owner can do this.
+     */
+    static async heartComment(commentId: string, callerUserId: string, videoId: string) {
+        // Verify caller owns the video
+        const video = await prisma.videos.findUnique({
+            where: { id: videoId },
+            select: { title: true, thumbnailUrl: true, channels: { select: { userId: true } } },
+        });
+
+        if (!video || video.channels.userId !== callerUserId) {
+            throw new Error("Unauthorized to heart comments on this video");
+        }
+
+        const comment = await prisma.comments.findUnique({
+            where: { id: commentId },
+            select: { isHearted: true, videoId: true, userId: true },
+        });
+
+        if (!comment || comment.videoId !== videoId) {
+            throw new Error("Comment does not belong to this video");
+        }
+
+        const newHeartedState = !comment.isHearted;
+
+        const updated = await prisma.comments.update({
+            where: { id: commentId },
+            data: { isHearted: newHeartedState },
+        });
+
+        // Notify if hearting
+        if (newHeartedState && comment.userId !== callerUserId) {
+            await NotificationService.notify({
+                userId: comment.userId,
+                actorId: callerUserId,
+                type: "COMMENT_LIKE", // Reusing COMMENT_LIKE type for owner heart
+                title: "Creator Loved Your Comment!",
+                message: `The creator loved your comment on "${video.title}"`,
+                videoId: videoId,
+                commentId: commentId,
+                thumbnailUrl: video.thumbnailUrl || undefined,
+                actionUrl: `/watch/${videoId}?lc=${commentId}`,
+            }).catch(e => console.error("Failed to send heart notification", e));
+        }
+
+        // Invalidate caches
+        await redis.del(
+            this.KEYS.list(videoId, "TOP"),
+            this.KEYS.list(videoId, "NEWEST"),
+        );
+
+        return { isHearted: newHeartedState };
+    }
+
+    /**
+     * Get all comments for a channel (Studio Inbox).
+     */
+    static async getChannelComments(
+        channelId: string,
+        cursor: string | null = null,
+        limit: number = 20,
+        userId?: string,
+    ): Promise<CommentListResult> {
+        const items = await prisma.comments.findMany({
+            where: {
+                videos: { channelId },
+                status: "VISIBLE",
+                deletedAt: null,
+            },
+            take: limit + 1,
+            cursor: cursor ? { id: cursor } : undefined,
+            skip: cursor ? 1 : 0,
+            orderBy: { createdAt: "desc" },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        image: true,
+                        channels: {
+                            select: {
+                                id: true,
+                                handle: true,
+                                name: true,
+                                image: true,
+                                isVerified: true,
+                            },
+                            take: 1,
+                        },
+                    },
+                },
+                videos: {
+                    select: { id: true, title: true, thumbnailUrl: true },
+                },
+            },
+        });
+
+        let nextCursor: string | null = null;
+        if (items.length > limit) {
+            const nextItem = items.pop();
+            nextCursor = nextItem?.id || null;
+        }
+
+        const mappedItems = items.map((c) => this.mapToCommentItem(c));
+
+        // Hydrate Reactions if userId is provided
+        if (userId && mappedItems.length > 0) {
+            const commentIds = mappedItems.map((c) => c.id);
+            const reactions = await this.fetchUserReactionsBatch(userId, commentIds);
+            mappedItems.forEach((c) => {
+                c.userReaction = reactions[c.id] || null;
+            });
+        }
+
+        return { items: mappedItems, nextCursor };
+    }
+
+    /**
      * Get a single comment by ID, fully hydrated with user and reaction state.
      * Used for highlighting specific linked comments (e.g. from notifications).
      */
@@ -682,6 +950,7 @@ export class CommentService {
                         image: true,
                         channels: {
                             select: {
+                                id: true,
                                 handle: true,
                                 name: true,
                                 image: true,
@@ -696,14 +965,12 @@ export class CommentService {
 
         if (!comment) return null;
 
-        let userReaction = null;
+        const mapped = this.mapToCommentItem(comment);
+
         if (userId) {
-            userReaction = await this.getUserReaction(userId, commentId);
+            mapped.userReaction = await this.getUserReaction(userId, commentId);
         }
 
-        return {
-            ...comment,
-            userReaction,
-        } as unknown as CommentItem;
+        return mapped;
     }
 }

@@ -1,0 +1,246 @@
+"use client";
+
+import React, { useState, useRef, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Input } from "@/components/ui/input";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormMessage,
+} from "@/components/ui/form";
+
+import { SearchIcon } from "@/components/ui/search";
+import { MicIcon } from "@/components/ui/mic";
+import { MicIconHandle } from "@/components/ui/mic";
+import { useRouter } from "next/navigation";
+
+import { cn } from "@/lib/utils";
+import { useClickOutside } from "@/hooks/use-click-outside";
+import { toast } from "sonner";
+
+// ---- Zod Schema ----
+const FormSchema = z.object({
+    query: z.string().min(1, "Please enter or speak a query"),
+});
+
+export function SearchForm() {
+    const router = useRouter();
+    const form = useForm<z.infer<typeof FormSchema>>({
+        resolver: zodResolver(FormSchema),
+        defaultValues: { query: "" },
+    });
+
+    const [listening, setListening] = useState(false);
+    const [spokenText, setSpokenText] = useState("");
+    const recognitionRef = useRef<SpeechRecognition | null>(null);
+    const isMounted = useRef(true);
+
+    const micIconRef = useRef<MicIconHandle>(null);
+    const [isFormActive, setFormActive] = useState<boolean>(false);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
+    const cancelListening = () => {
+        const recognition = recognitionRef.current;
+        if (recognition) {
+            try {
+                recognition.abort();
+            } catch (e) {
+                // ignore
+            }
+        }
+        if (isMounted.current) {
+            setSpokenText("");
+            setListening(false);
+            micIconRef.current?.stopAnimation();
+        }
+    };
+
+    const startListening = () => {
+        const recognition = recognitionRef.current;
+        if (!recognition) {
+            toast.error("Speech recognition not supported in this browser.");
+            return;
+        }
+
+        form.setValue("query", "");
+        if (isMounted.current) {
+            setSpokenText("");
+            setListening(true);
+            micIconRef.current?.startAnimation();
+        }
+
+        try {
+            recognition.start();
+        } catch (error) {
+            console.error("Failed to start recognition:", error);
+            cancelListening();
+        }
+    };
+
+    function onSubmit(data: z.infer<typeof FormSchema>) {
+        const cleanQuery = data.query.trim();
+        if (!cleanQuery) {
+            toast.warning("Please enter a valid search query");
+            return;
+        }
+        router.push(`/search?q=${encodeURIComponent(cleanQuery)}`);
+        setFormActive(false);
+    }
+
+    // Setup SpeechRecognition
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const SpeechRecognition =
+            (window as any).SpeechRecognition ||
+            (window as any).webkitSpeechRecognition;
+
+        if (SpeechRecognition && !recognitionRef.current) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = "en-US";
+            recognition.interimResults = true;
+            recognition.continuous = false;
+
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
+                if (!isMounted.current) return;
+                const text = Array.from(event.results)
+                    .map((result: any) => result[0]?.transcript || "")
+                    .join("");
+                setSpokenText(text);
+                if (event.results[0]?.isFinal) {
+                    form.setValue("query", text);
+                }
+            };
+
+            recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+                if (!isMounted.current) return;
+                const errorCode = event.error;
+
+                if (errorCode === "not-allowed" || errorCode === "service-not-allowed") {
+                    if (!window.isSecureContext) {
+                        toast.error("Speech recognition requires a secure (HTTPS) connection. Please try a different browser or use a secure origin.");
+                    } else {
+                        toast.error("Microphone access is blocked. If you just enabled it, please refresh the page to apply changes.");
+                    }
+                } else if (errorCode === "audio-capture") {
+                    toast.error("No microphone detected. Please check your hardware.");
+                } else if (errorCode === "network") {
+                    toast.error("Network error. Please check your connection.");
+                } else if (errorCode !== "aborted" && errorCode !== "no-speech") {
+                    console.error("Speech recognition error:", errorCode);
+                    toast.error(`Error: ${errorCode}`);
+                }
+                cancelListening();
+            };
+
+            recognition.onend = () => {
+                if (!isMounted.current) return;
+                const query = form.getValues("query").trim();
+                if (query) {
+                    form.handleSubmit(onSubmit)();
+                }
+                cancelListening();
+            };
+
+            recognitionRef.current = recognition;
+        }
+
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.abort();
+                recognitionRef.current = null;
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const ref = useRef<HTMLFormElement>(null);
+    useClickOutside(ref, () => setFormActive(false), isFormActive);
+    return (
+        <Form {...form}>
+            <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className={cn(
+                    "flex items-center justify-center gap-1 rounded w-full h-full  relative sm:bg-transparent max-sm:absolute sm:max-w-lg bg-background max-sm:pl-4 max-sm:z-20 sm:pr-2 sm:border-r",
+                    !isFormActive && " max-sm:hidden",
+                )}
+                ref={ref}
+            >
+                {/* Search Input */}
+                <MicIcon
+                    size={20}
+                    ref={micIconRef}
+                    className="border p-2 rounded-full cursor-pointer"
+                    onClick={() => {
+                        if (listening) {
+                            cancelListening();
+                        } else {
+                            startListening();
+                        }
+                    }}
+                />
+                <FormField
+                    control={form.control}
+                    name="query"
+                    render={({ field }) => (
+                        <FormItem className="flex-1 relative w-max h-max">
+                            <div className="relative w-full h-full">
+                                <FormControl>
+                                    <Input
+                                        placeholder="Type or speak your query..."
+                                        {...field}
+                                        className="rounded-l-full rounded-r-full text-muted-foreground border-accent pr-10"
+                                    />
+                                </FormControl>
+                                <button
+                                    type="submit"
+                                    className="absolute w-auto h-full right-0 top-1/2 -translate-y-1/2 px-3 rounded-r-full cursor-pointer grid place-items-center bg-accent text-accent-foreground"
+                                >
+                                    <SearchIcon size={18} />
+                                </button>
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                {/* Mic or Cancel Button */}
+                {/* {!listening ? (
+                    <IconMicrophone
+                        onClick={startListening}
+                        className="rounded-full bg-background hover:bg-accent border h-9 w-9 p-2 cursor-pointer"
+                    />
+                ) : (
+                    <IconX
+                        onClick={cancelListening}
+                        className="rounded-full bg-background hover:bg-accent border h-9 w-9 p-2 cursor-pointer"
+                    />
+                )} */}
+
+                {/* Spoken text preview */}
+                {spokenText && (
+                    <span className="absolute bottom-0 translate-y-full w-max h-max flex text-center origin-center z-20 border bg-transparent backdrop-blur-2xl p-1 px-2 rounded-full text-sm">
+                        {spokenText}
+                    </span>
+                )}
+            </form>
+            {!isFormActive && (
+                <SearchIcon
+                    size={20}
+                    className="rounded-full bg-background hover:bg-accent cursor-pointer sm:hidden"
+                    onClick={() => setFormActive(!isFormActive)}
+                />
+            )}
+        </Form>
+    );
+}

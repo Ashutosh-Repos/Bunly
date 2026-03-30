@@ -1,12 +1,13 @@
 import { Queue } from "bullmq";
 import { bullMQRedis } from "./redis.js";
 import config from "./config.js";
+import { env } from "../env.js";
 
 // ─── Build-time detection ────────────────────────────────────────────────────
 // Next.js sets NEXT_PHASE during build — skip heavy init during page collection
 const isBuildTime =
-    process.env.NEXT_PHASE === "phase-production-build" ||
-    (!process.env.BREVO_API_KEY && !process.env.REDIS_URL);
+    env.NEXT_PHASE === "phase-production-build" ||
+    (!config.email.brevoApiKey && !config.redis.url);
 
 // ─── Email Job Types ─────────────────────────────────────────────────────────
 interface EmailJob {
@@ -27,7 +28,7 @@ let emailQueue: Queue | null = null;
 // Lazy-init to avoid import-time crashes when Redis isn't available (build time)
 function getQueue(): Queue | null {
     if (emailQueue) return emailQueue;
-    if (!process.env.REDIS_URL || isBuildTime) return null;
+    if (!config.redis.url || isBuildTime) return null;
 
     try {
         emailQueue = new Queue(QUEUE_NAME, {
@@ -48,7 +49,7 @@ function getQueue(): Queue | null {
 
 // ─── Email Service ───────────────────────────────────────────────────────────
 
-const DEFAULT_FROM = process.env.EMAIL_FROM || "clashutosh04@gmail.com";
+const DEFAULT_FROM = config.email.from;
 
 class EmailService {
     constructor() {
@@ -75,10 +76,42 @@ class EmailService {
                 });
                 return;
             } catch (err) {
-                console.warn("[Email] Queue add failed:", err);
+                console.warn("[Email] Queue add failed, falling back to direct send:", err);
             }
         } else {
-            console.warn("[Email] No queue available, skipping email send");
+            console.warn("[Email] No queue available, falling back to direct send");
+        }
+
+        // Direct Execution Fallback
+        if (!config.email.brevoApiKey) {
+            console.warn("[Email] No Brevo API Key configured, intentionally dropping email.");
+            return;
+        }
+
+        try {
+            const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+                method: "POST",
+                headers: {
+                    "api-key": config.email.brevoApiKey,
+                    "content-type": "application/json",
+                    accept: "application/json",
+                },
+                body: JSON.stringify({
+                    sender: { name: config.appName, email: job.from },
+                    to: [{ email: job.to }],
+                    subject: job.subject,
+                    htmlContent: job.html,
+                }),
+                signal: AbortSignal.timeout(10_000),
+            });
+
+            if (!res.ok) {
+                const result = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
+                throw new Error(result.code ? `Brevo ${result.code}: ${result.message}` : `Brevo HTTP ${res.status}`);
+            }
+            console.log(`[Email] ✅ Direct delivery successful: "${subject}"`);
+        } catch (fallbackErr) {
+            console.error(`[Email] ❌ Direct delivery failed for "${subject}":`, (fallbackErr as Error).message);
         }
     }
 

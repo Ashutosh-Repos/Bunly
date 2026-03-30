@@ -90,36 +90,44 @@ export function probeVideo(filePath: string): Promise<VideoMetadata> {
     });
 }
 
-/**
- * Generate Thumbnails
- * Generates 5 thumbnails evenly spaced
- */
-export function generateThumbnails(
+export async function generateThumbnails(
     inputPath: string,
     outputDir: string,
+    duration: number,
 ): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-        const fileNames: string[] = [];
+    const fileNames: string[] = [];
+    const count = 3;
+    
+    // Safety guard
+    const safeDuration = (duration && !isNaN(duration) && duration > 0) ? duration : 10;
+    
+    // Generate timestamps at 15%, 50%, and 85% marks natively bypassing fluent-ffmpeg's full RAM buffering
+    const percentages = [0.15, 0.50, 0.85];
+    const timestamps = percentages.map(p => Math.floor(safeDuration * p));
 
-        const cmd = ffmpeg(inputPath);
-        trackCommand(cmd);
+    for (let i = 0; i < timestamps.length; i++) {
+        const sec = timestamps[i];
+        const filename = `thumb-${i + 1}.jpg`;
+        const outputPath = path.join(outputDir, filename);
 
-        cmd.screenshots({
-            count: 5,
-            folder: outputDir,
-            filename: "thumb-%i.jpg",
-            // Removed 'size: 1280x720' restriction to respect exact native aspect ratio
-        })
-            .on("filenames", (filenames) => {
-                fileNames.push(...filenames);
-            })
-            .on("end", () => {
-                resolve(fileNames);
-            })
-            .on("error", (err) => {
-                reject(err);
-            });
-    });
+        await new Promise<void>((resolve, reject) => {
+            const cmd = ffmpeg(inputPath);
+            trackCommand(cmd);
+
+            cmd.inputOptions([`-ss ${sec}`]) // FAST SEEK (Crucial for Memory Exhaustion prevention)
+                .frames(1)
+                .outputOptions(["-q:v 2"]) // High quality JPEG
+                .output(outputPath)
+                .on("end", () => {
+                    fileNames.push(filename);
+                    resolve();
+                })
+                .on("error", (err) => reject(err))
+                .run();
+        });
+    }
+
+    return fileNames;
 }
 
 /**
@@ -136,7 +144,7 @@ export function transcodeResolution(
     outputDir: string,
     resolution: { width: number; height: number; name: string },
     onProgress?: (percent: number) => void,
-    options?: { sourceAudioCodec?: string },
+    options?: { sourceAudioCodec?: string, signal?: AbortSignal },
 ): Promise<string> {
     return new Promise((resolve, reject) => {
         const cleanName = resolution.name.replace("p", ""); // 1080
@@ -221,6 +229,14 @@ export function transcodeResolution(
             cmd.audioCodec("copy");
         } else {
             cmd.audioCodec("aac").audioBitrate(audioBitrate).audioChannels(2); // Stereo
+        }
+
+        if (options?.signal) {
+            options.signal.addEventListener("abort", () => {
+                console.warn(`[FFmpeg] 🛑 AbortSignal received for ${resolution.name}. Killing child process natively...`);
+                cmd.kill("SIGKILL");
+                reject(new Error("Transcoding aborted by AbortSignal"));
+            });
         }
 
         cmd.output(`${path.join(outputDir, `playlist.m3u8`)}`)

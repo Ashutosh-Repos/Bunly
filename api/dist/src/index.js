@@ -16,15 +16,28 @@ import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyWebsocket from "@fastify/websocket";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import { auth } from "./lib/auth.js";
-import { appRouter } from "./trpc/router.js";
+import { appRouter } from "./trpc/appRouter.js";
 import { createContext } from "./trpc/context.js";
 import { env } from "./env.js";
 import { prisma } from "./lib/prisma.js";
 import redis, { bullMQRedis } from "./lib/redis.js";
 import { redisSubscriptionManager } from "./lib/ws/redisSubscription.js";
 import { REDIS_KEYS } from "./lib/ws/definitions.js";
-const port = parseInt(env.PORT || "4000", 10);
-const origin = env.CORS_ORIGIN || "http://localhost:3000";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import config from "./lib/config.js";
+import { getPresignedGetUrl } from "./lib/storage.js";
+// Shared S3Client for media proxy — avoids creating a new client per .m3u8 request
+const mediaProxyS3 = new S3Client({
+    region: config.s3.region,
+    endpoint: config.s3.endpoint,
+    credentials: {
+        accessKeyId: config.s3.accessKeyId,
+        secretAccessKey: config.s3.secretAccessKey,
+    },
+    forcePathStyle: true,
+});
+const port = env.PORT;
+const origin = env.CORS_ORIGIN;
 const server = Fastify({
     logger: true,
     maxParamLength: 5000,
@@ -58,8 +71,8 @@ server.route({
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             try {
-                // Construct request URL
-                const url = new URL(request.url, `http://${request.headers.host}`);
+                // Construct request URL using strict BETTER_AUTH_URL for reliability
+                const url = new URL(request.url, env.BETTER_AUTH_URL);
                 // Convert Fastify headers to standard Headers object
                 const headers = new Headers();
                 Object.entries(request.headers).forEach(([key, value]) => {
@@ -148,6 +161,52 @@ server.get("/ws/videos", { websocket: true }, (socket /* WebSocket */, req /* Fa
         redisSubscriptionManager.removeListener(channel, messageHandler);
     });
 });
+// Media Proxy: Generates Transient Presigned GET URLs for Private Bucket Objects
+// Also acts as a Lazy HLS Router to support relative WHATWG URL resolution.
+server.get("/api/media/*", (req, reply) => __awaiter(void 0, void 0, void 0, function* () {
+    const rawKey = req.params["*"];
+    if (!rawKey) {
+        return reply.status(400).send({ error: "Missing key parameter" });
+    }
+    // Decode in case of URL encoded components
+    const key = decodeURIComponent(rawKey);
+    try {
+        // HLS Text Manifests (.m3u8) MUST be downloaded and served as text by Fastify
+        // This ensures the browser's base URL is the Fastify domain for relative chunk resolution.
+        if (key.endsWith(".m3u8")) {
+            const command = new GetObjectCommand({
+                Bucket: config.s3.bucket,
+                Key: key,
+            });
+            const s3Response = yield mediaProxyS3.send(command);
+            if (!s3Response.Body) {
+                return reply.status(404).send({ error: "Manifest empty or not found" });
+            }
+            // Stream it directly to the browser
+            reply.header("Content-Type", "application/vnd.apple.mpegurl");
+            // Cache text manifests briefly for performance (too long risks breaking live playlists)
+            reply.header("Cache-Control", "public, max-age=60");
+            const stream = s3Response.Body;
+            return reply.send(stream);
+        }
+        // EVERYTHING ELSE (Photos, Avatars, .ts chunks, .vtt sprites) 
+        // Generates a Pre-Signed URL and returns a 302 Redirect (Zero Egress!)
+        const url = yield getPresignedGetUrl(key);
+        // Cache the redirect for 50 minutes (presigned URLs expire in 60m)
+        // Include CORS headers defensively for HLS .ts segment cross-origin requests
+        return reply
+            .header("Cache-Control", "public, max-age=3000")
+            .header("Access-Control-Allow-Origin", origin)
+            .redirect(url);
+    }
+    catch (error) {
+        if (error.name === "NoSuchKey") {
+            return reply.status(404).send({ error: "Media not found" });
+        }
+        server.log.error(error, "Media Proxy Error");
+        return reply.status(500).send({ error: "Failed to fetch media" });
+    }
+}));
 // Basic health check outside of tRPC
 server.get("/health", () => __awaiter(void 0, void 0, void 0, function* () {
     return { status: "ok", timestamp: new Date().toISOString() };

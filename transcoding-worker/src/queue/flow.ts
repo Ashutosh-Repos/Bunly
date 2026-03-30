@@ -80,7 +80,7 @@ export async function addTranscodeFlow(
             {
                 name: JOBS.GENERATE_THUMBNAILS,
                 queueName: QUEUES.TRANSCODE,
-                data: { videoId, inputPath },
+                data: { videoId, inputPath, duration: metadata.duration },
                 opts: { ...JOB_OPTS, failParentOnFailure: false }, // Thumbnails technically optional but highly desired
             },
             {

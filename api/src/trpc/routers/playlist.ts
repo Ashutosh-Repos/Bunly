@@ -25,11 +25,11 @@ const playlistSchema = z.object({
 
 export const playlistRouter = router({
     createPlaylist: protectedProcedure
-        .input(playlistSchema.omit({ visibility: true }))
+        .input(playlistSchema)
         .mutation(async ({ ctx, input }) => {
-            const { title, description, channelId } = input;
+            const { title, description, channelId, visibility } = input;
             const userId = ctx.session.user.id;
-            let finalVisibility: "PUBLIC" | "PRIVATE" | "UNLISTED" = "UNLISTED";
+            let finalVisibility = visibility;
 
             // If channelId is provided, verify ownership
             if (channelId) {
@@ -71,10 +71,12 @@ export const playlistRouter = router({
     updatePlaylist: playlistProcedure
         .input(
             playlistSchema
+                .omit({ visibility: true })
                 .extend({
                     playlistId: z.string({
                         message: "Playlist ID is required",
                     }),
+                    visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]).optional(),
                 })
                 .partial()
                 .required({ playlistId: true }),
@@ -111,7 +113,9 @@ export const playlistRouter = router({
             const updatedPlaylist = await prisma.playlists.update({
                 where: { id: playlist.id },
                 data: {
-                    ...data,
+                    title: data.title,
+                    description: data.description,
+                    visibility: data.visibility
                 },
             });
 
@@ -146,7 +150,7 @@ export const playlistRouter = router({
             return { success: true, playlist: ctx.playlist };
         }),
 
-    getPublicPlaylist: protectedProcedure
+    getPublicPlaylist: publicProcedure
         .input(
             z.object({
                 playlistId: z.string({ message: "Playlist ID is required" }),
@@ -154,9 +158,10 @@ export const playlistRouter = router({
         )
         .query(async ({ ctx, input }) => {
             const { playlistId } = input;
+            const userId = ctx.session?.user?.id ?? null;
 
             const playlist = await prisma.playlists.findUnique({
-                where: { id: playlistId },
+                where: { id: playlistId, deletedAt: null },
                 include: {
                     user: {
                         select: {
@@ -189,7 +194,7 @@ export const playlistRouter = router({
             // Access Rules:
             // 1. Owner can always view
             // 2. Public/Unlisted can be viewed by anyone
-            const isOwner = playlist.userId === ctx.session.user.id;
+            const isOwner = userId ? playlist.userId === userId : false;
             const isPublicOrUnlisted =
                 playlist.visibility === "PUBLIC" ||
                 playlist.visibility === "UNLISTED";
@@ -201,8 +206,6 @@ export const playlistRouter = router({
                 });
             }
 
-            // For public view, we might want to return a slightly different shape
-            // or just the playlist as is.
             return { success: true, playlist };
         }),
 
@@ -319,7 +322,7 @@ export const playlistRouter = router({
             const { playlistId, limit, cursor } = input;
 
             const playlist = await prisma.playlists.findUnique({
-                where: { id: playlistId },
+                where: { id: playlistId, deletedAt: null },
                 select: { id: true, visibility: true, userId: true },
             });
 
@@ -367,6 +370,8 @@ export const playlistRouter = router({
                                     name: true,
                                     handle: true,
                                     image: true,
+                                    userId: true,
+                                    isVerified: true,
                                 },
                             },
                         },
@@ -384,14 +389,33 @@ export const playlistRouter = router({
             const videos = items.map((item) => {
                 const { channels, ...restVideo } = item.videos;
 
+                // Security: Mask PRIVATE video details if requester is not the video's owner
+                const isVideoOwner = channels?.userId === ctx.session.user.id;
+                const isPrivate = restVideo.visibility === "PRIVATE";
+
+                if (isPrivate && !isVideoOwner) {
+                    restVideo.title = "[Private Video]";
+                    restVideo.thumbnailUrl = null;
+                    restVideo.duration = 0;
+                    restVideo.viewCount = 0;
+                    restVideo.likeCount = 0;
+                    restVideo.dislikeCount = 0;
+                    if (channels) {
+                        channels.name = "";
+                        channels.handle = "";
+                        channels.image = null;
+                    }
+                }
+
                 return {
                     ...restVideo,
                     channelId: channels?.id || "",
-                    channels: {
+                    author: {
                         id: channels?.id || "",
-                        name: channels?.name || null,
-                        handle: channels?.handle || null,
+                        name: channels?.name || "",
+                        handle: channels?.handle || "",
                         image: channels?.image || null,
+                        isVerified: channels?.isVerified || false,
                     },
                     position: item.position,
                     addedAt: item.addedAt,
@@ -493,13 +517,12 @@ export const playlistRouter = router({
                         },
                         playlist_videos: {
                             orderBy: { position: "asc" },
-                            where: { videoId }, // Only fetch the target video for containment
                             select: {
                                 videoId: true,
                                 position: true,
                                 videos: { select: { thumbnailUrl: true } },
                             },
-                            take: 1, // Only need to know if it exists
+                            take: 100, // Fetch top 100 items to derive containment + cover thumbnail accurately
                         },
                     },
                 });
@@ -558,6 +581,57 @@ export const playlistRouter = router({
         }),
 
     /**
+     * List all public playlists for a channel (Public Profile Playlists tab).
+     */
+    getPublicChannelPlaylists: publicProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+            }),
+        )
+        .query(async ({ ctx, input }) => {
+            const { channelId } = input;
+
+            const playlists = await prisma.playlists.findMany({
+                where: {
+                    channelId,
+                    deletedAt: null,
+                    visibility: "PUBLIC",
+                },
+                orderBy: { updatedAt: "desc" },
+                include: {
+                    _count: {
+                        select: { playlist_videos: true },
+                    },
+                    channels: {
+                        select: { name: true }
+                    },
+                    playlist_videos: {
+                        take: 1,
+                        orderBy: { position: "asc" },
+                        select: {
+                            videos: {
+                                select: { thumbnailUrl: true },
+                            },
+                        },
+                    },
+                },
+            });
+
+            return {
+                success: true,
+                playlists: playlists.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        firstVideoThumbnail:
+                            playlist_videos[0]?.videos.thumbnailUrl ?? null,
+                    };
+                }),
+            };
+        }),
+
+    /**
      * List all playlists across all channels for the current user (Save to Playlist dialog).
      */
     getUserPlaylists: protectedProcedure
@@ -576,8 +650,12 @@ export const playlistRouter = router({
                     orderBy: { updatedAt: "desc" },
                     include: {
                         playlist_videos: {
-                            where: { videoId },
-                            select: { videoId: true },
+                            orderBy: { position: "asc" },
+                            select: { 
+                                videoId: true,
+                                videos: { select: { thumbnailUrl: true } },
+                            },
+                            take: 100, // Reasonable cap for looking up containment + cover
                         },
                     },
                 });
@@ -589,6 +667,7 @@ export const playlistRouter = router({
                         return {
                             ...rest,
                             containsVideo: playlist_videos.length > 0,
+                            firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
                         };
                     }),
                 };
@@ -597,14 +676,25 @@ export const playlistRouter = router({
             const playlists = await prisma.playlists.findMany({
                 where: { userId, deletedAt: null },
                 orderBy: { updatedAt: "desc" },
+                include: {
+                    playlist_videos: {
+                        take: 1,
+                        orderBy: { position: "asc" },
+                        select: { videos: { select: { thumbnailUrl: true } } },
+                    },
+                },
             });
 
             return {
                 success: true,
-                playlists: playlists.map((p) => ({
-                    ...p,
-                    containsVideo: false,
-                })),
+                playlists: playlists.map((p) => {
+                    const { playlist_videos, ...rest } = p;
+                    return {
+                        ...rest,
+                        containsVideo: false,
+                        firstVideoThumbnail: playlist_videos[0]?.videos?.thumbnailUrl ?? null,
+                    };
+                }),
             };
         }),
 
@@ -657,6 +747,8 @@ export const playlistRouter = router({
             return {
                 id: playlist.id,
                 title: playlist.title,
+                description: playlist.description,
+                visibility: playlist.visibility,
                 authorName: playlist.channels?.name || playlist.user.name,
                 authorHandle: playlist.channels?.handle || null,
                 videos: playlist.playlist_videos
@@ -675,59 +767,27 @@ export const playlistRouter = router({
             };
         }),
 
-    getPublicChannelPlaylists: publicProcedure
-        .input(
-            z.object({
-                channelId: z.string(),
-                limit: z.number().min(1).max(50).default(20),
-                cursor: z.string().optional(),
-            }),
-        )
-        .query(async ({ input }) => {
-            const { channelId, limit, cursor } = input;
-
-            const playlists = await prisma.playlists.findMany({
-                where: {
-                    channelId,
-                    visibility: "PUBLIC",
-                    deletedAt: null,
-                },
-                take: limit + 1,
-                cursor: cursor ? { id: cursor } : undefined,
-                orderBy: { updatedAt: "desc" },
-                include: {
-                    _count: {
-                        select: { playlist_videos: true },
-                    },
-                    playlist_videos: {
-                        take: 1,
-                        orderBy: { position: "asc" },
-                        select: {
-                            videos: {
-                                select: { thumbnailUrl: true },
-                            },
-                        },
-                    },
-                },
+    updatePlaylistDetails: protectedProcedure
+        .input(z.object({
+            playlistId: z.string(),
+            title: z.string().min(1).max(150),
+            visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"])
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const playlist = await prisma.playlists.findUnique({
+                where: { id: input.playlistId }
             });
 
-            let nextCursor: string | undefined = undefined;
-            if (playlists.length > limit) {
-                const nextItem = playlists.pop();
-                nextCursor = nextItem?.id;
+            if (!playlist || playlist.userId !== ctx.session.user.id) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized" });
             }
 
-            return {
-                success: true,
-                playlists: playlists.map((p) => {
-                    const { playlist_videos, ...rest } = p;
-                    return {
-                        ...rest,
-                        firstVideoThumbnail:
-                            playlist_videos[0]?.videos?.thumbnailUrl ?? null,
-                    };
-                }),
-                nextCursor,
-            };
+            return prisma.playlists.update({
+                where: { id: input.playlistId },
+                data: {
+                    title: input.title,
+                    visibility: input.visibility
+                }
+            });
         }),
 });

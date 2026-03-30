@@ -104,21 +104,72 @@ export const notificationRouter = router({
             return { success: result.count > 0 };
         }),
 
-    onNotification: protectedProcedure.subscription(async function* ({ ctx }) {
+    onNotification: protectedProcedure.subscription(async function* ({ ctx, signal }) {
         const userId = ctx.session.user.id;
         const channel = NotificationService.getChannel(userId);
 
         console.log(`[TRPC] 🎧 Client subscribing to ${channel}`);
 
+        const ac = new AbortController();
+        // Wire TRPC's cancellation signal to our AbortController
+        signal?.addEventListener("abort", () => ac.abort());
+
         try {
             for await (const [message] of on(
                 redisSubscriptionManager,
                 channel,
+                { signal: ac.signal },
             )) {
                 yield message;
             }
         } catch (err) {
+            // AbortError is expected on disconnect, don't log it
+            if (err instanceof Error && err.name === "AbortError") return;
             console.error(`[TRPC] Subscription error on ${channel}`, err);
         }
     }),
+
+    getSettings: protectedProcedure.query(async ({ ctx }) => {
+        const settings = await prisma.notification_settings.findUnique({
+            where: { userId: ctx.session.user.id },
+        });
+
+        // Return defaults if row doesn't exist yet
+        return (
+            settings ?? {
+                newVideos: true,
+                liveStreams: true,
+                comments: true,
+                replies: true,
+                likes: false,
+                subscribers: true,
+            }
+        );
+    }),
+
+    updateSettings: protectedProcedure
+        .input(
+            z.object({
+                newVideos: z.boolean().optional(),
+                liveStreams: z.boolean().optional(),
+                comments: z.boolean().optional(),
+                replies: z.boolean().optional(),
+                likes: z.boolean().optional(),
+                subscribers: z.boolean().optional(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+
+            return prisma.notification_settings.upsert({
+                where: { userId },
+                create: {
+                    userId,
+                    ...input,
+                },
+                update: {
+                    ...input,
+                },
+            });
+        }),
 });

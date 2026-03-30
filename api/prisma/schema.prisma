@@ -27,6 +27,13 @@ model account {
   @@index([userId])
 }
 
+model jwks {
+  id         String   @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime @default(now())
+}
+
 model audit_logs {
   id                                 String   @id @default(cuid())
   actorId                            String?
@@ -94,6 +101,7 @@ model channels {
   videos          videos[]
   tags            tags[]            @relation("ChannelToTag")
 
+  @@unique([subscriberCount(sort: Desc), id(sort: Asc)])
   @@index([createdAt(sort: Desc)])
   @@index([deletedAt])
   @@index([featureFlags], type: Gin)
@@ -140,6 +148,11 @@ model comments {
   reports           reports[]
 
   @@index([deletedAt])
+
+  // Pagination Keysets
+  @@unique([likeCount(sort: Desc), id(sort: Asc)])
+  @@unique([createdAt(sort: Desc), id(sort: Asc)])
+
   @@index([likeCount(sort: Desc)])
   @@index([userId])
   @@index([videoId, parentId, createdAt])
@@ -212,10 +225,11 @@ model notifications {
   videos                           videos?          @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([actorId])
-  @@index([type, createdAt(sort: Desc)])
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isRead, createdAt(sort: Desc)])
-  @@index([userId, isHidden, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isRead, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isHidden, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isHidden, type, createdAt(sort: Desc), id(sort: Desc)])
   @@index([videoId, type])
   @@index([groupKey])
   @@index([createdAt])
@@ -242,7 +256,6 @@ model playlists {
   title           String              @db.VarChar(150)
   description     String?
   visibility      VideoVisibility     @default(PUBLIC)
-  thumbnailUrl    String?
   isSystem        Boolean             @default(false)
   systemType      PlaylistSystemType?
   videoCount      Int                 @default(0)
@@ -254,6 +267,7 @@ model playlists {
   user            user                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, systemType])
+  @@unique([videoCount(sort: Desc), id(sort: Asc)])
   @@index([channelId])
   @@index([deletedAt])
   @@index([userId, createdAt(sort: Desc)])
@@ -326,6 +340,8 @@ model strikes {
   issuedAt                   DateTime   @default(now())
   expiresAt                  DateTime?
   appealed                   Boolean    @default(false)
+  appealedAt                 DateTime?
+  appealNote                 String?
   revokedAt                  DateTime?
   adminId                    String?
   reports                    reports[]
@@ -554,6 +570,10 @@ model videos {
   watch_history      watch_history[]
   tags               tags[]             @relation("TagToVideo")
 
+  // Pagination Keysets
+  @@unique([viewCount(sort: Desc), id(sort: Asc)])
+  @@unique([createdAt(sort: Desc), id(sort: Asc)])
+  @@unique([engagementScore(sort: Desc), viewCount(sort: Desc), id(sort: Asc)])
   @@index([categoryId, visibility, hotScore(sort: Desc)])
   @@index([categoryId, visibility, publishedAt(sort: Desc)])
   @@index([channelId])

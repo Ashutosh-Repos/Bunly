@@ -23,7 +23,7 @@ import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { NotificationService } from "../../services/NotificationService.js";
+import { StreamService } from "../../services/StreamService.js";
 const channelHandleRegex = /^[a-zA-Z0-9_.]+$/;
 const linkSchema = z.object({
     title: z.string().trim().min(1).max(100),
@@ -40,7 +40,12 @@ export const createChannelSchema = z.object({
     description: z.string().trim().max(5000).optional(),
     image: z.string().optional().or(z.literal("")),
     bannerUrl: z.string().optional().or(z.literal("")),
-    contactEmail: z.email().optional(),
+    contactEmail: z
+        .string()
+        .email()
+        .optional()
+        .or(z.literal(""))
+        .transform((val) => (val === "" ? null : val)),
     location: z.string().trim().max(100).optional(),
     links: z.array(linkSchema).max(20).optional(),
     tags: z.array(z.string().trim()).max(50).optional(),
@@ -83,27 +88,25 @@ export const channelRouter = router({
             return { success: true, channel };
         }
         catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError &&
-                error.code === "P2002") {
-                throw new TRPCError({
-                    code: "CONFLICT",
-                    message: "This handle is already taken.",
-                });
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new TRPCError({
+                        code: "CONFLICT",
+                        message: "This handle is already taken.",
+                    });
+                }
+                if (error.code === "P2003") {
+                    throw new TRPCError({
+                        code: "UNAUTHORIZED",
+                        message: "User account missing or session out of sync. Please log in again.",
+                    });
+                }
             }
             throw error;
         }
     })),
     updateChannel: channelProcedure
-        .input(createChannelSchema
-        .extend({
-        featureFlags: z
-            .object({
-            canLiveStream: z.boolean().optional(),
-            canUpload: z.boolean().optional(),
-        })
-            .optional(),
-    })
-        .partial())
+        .input(createChannelSchema.partial())
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { tags, channelId: _channelId } = input, data = __rest(input, ["tags", "channelId"]);
         const channelId = ctx.channel.id;
@@ -155,16 +158,58 @@ export const channelRouter = router({
         }
     })),
     deleteChannel: channelProcedure.mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx }) {
-        // Soft-delete: preserves all video records and analytics.
+        const userId = ctx.session.user.id;
+        const channelId = ctx.channel.id;
+        yield prisma.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            // 1. Soft-delete the channel
+            yield tx.channels.update({
+                where: { id: channelId },
+                data: {
+                    deletedAt: new Date(),
+                    status: "SUSPENDED",
+                },
+            });
+            // 2. Cascade delete User's subscriptions (Data Consistency)
+            // The user deleting their channel profile effectively deletes their public presence.
+            const userSubs = yield tx.subscriptions.findMany({
+                where: { subscriberId: userId },
+                select: { channelId: true },
+            });
+            if (userSubs.length > 0) {
+                const subbedChannelIds = userSubs.map((s) => s.channelId);
+                // Decrement remote channels' subscriber counts
+                yield tx.channels.updateMany({
+                    where: { id: { in: subbedChannelIds } },
+                    data: { subscriberCount: { decrement: 1 } },
+                });
+                // Purge the subscription records
+                yield tx.subscriptions.deleteMany({
+                    where: { subscriberId: userId },
+                });
+            }
+        }));
         // A background job should later clean up associated S3 objects.
-        yield prisma.channels.update({
-            where: { id: ctx.channel.id },
-            data: {
-                deletedAt: new Date(),
-                status: "SUSPENDED",
-            },
-        });
         return { success: true };
+    })),
+    /**
+     * Get the current user's subscription status for a channel.
+     * Used by SubscribeButton to hydrate initial state.
+     */
+    getSubscriptionStatus: protectedProcedure
+        .input(z.object({ channelId: z.string().min(1) }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const userId = ctx.session.user.id;
+        const { channelId } = input;
+        // Hybrid Read: Cache → DB
+        const cachedStatus = yield StreamService.getSubscriptionStatus(userId, channelId);
+        if (cachedStatus !== null) {
+            return { subscribed: cachedStatus === "SUBSCRIBE" };
+        }
+        const existing = yield prisma.subscriptions.findUnique({
+            where: { subscriberId_channelId: { subscriberId: userId, channelId } },
+            select: { id: true },
+        });
+        return { subscribed: !!existing };
     })),
     toggleSubscription: protectedProcedure
         .input(z.object({
@@ -173,68 +218,34 @@ export const channelRouter = router({
         .mutation((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
         const { channelId } = input;
         const userId = ctx.session.user.id;
-        // TODO: For high scale (>1M users), refrain from writing to DB directly.
-        // Instead, push to a Redis queue and process in background (Write-Behind).
-        return yield prisma.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-            const channelInfo = yield tx.channels.findUnique({
-                where: { id: channelId },
-                select: { userId: true, handle: true, name: true },
+        // Write-Behind: High scale architecture via Redis Streams.
+        // Gets initial state from hybrid cache/DB, computes toggle, and delegates write to worker.
+        const channelInfo = yield prisma.channels.findUnique({
+            where: { id: channelId },
+            select: { userId: true },
+        });
+        if (!channelInfo) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found" });
+        }
+        if (channelInfo.userId === userId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot subscribe to your own channel" });
+        }
+        // Hybrid Read
+        let isSubscribed = false;
+        const cachedStatus = yield StreamService.getSubscriptionStatus(userId, channelId);
+        if (cachedStatus !== null) {
+            isSubscribed = cachedStatus === "SUBSCRIBE";
+        }
+        else {
+            const existing = yield prisma.subscriptions.findUnique({
+                where: { subscriberId_channelId: { subscriberId: userId, channelId } },
             });
-            if (!channelInfo) {
-                throw new TRPCError({
-                    code: "NOT_FOUND",
-                    message: "Channel not found",
-                });
-            }
-            if (channelInfo.userId === userId) {
-                throw new TRPCError({
-                    code: "BAD_REQUEST",
-                    message: "You cannot subscribe to your own channel",
-                });
-            }
-            const existing = yield tx.subscriptions.findUnique({
-                where: {
-                    subscriberId_channelId: {
-                        subscriberId: userId,
-                        channelId,
-                    },
-                },
-            });
-            if (existing) {
-                yield tx.subscriptions.delete({
-                    where: { id: existing.id },
-                });
-                yield tx.channels.update({
-                    where: { id: channelId },
-                    data: { subscriberCount: { decrement: 1 } },
-                });
-                // Floor at 0 to prevent data inconsistency
-                yield tx.$executeRaw `UPDATE channels SET "subscriberCount" = GREATEST(0, "subscriberCount") WHERE id = ${channelId}`;
-                return { success: true, action: "UNSUBSCRIBED" };
-            }
-            else {
-                yield tx.subscriptions.create({
-                    data: { subscriberId: userId, channelId },
-                });
-                const channel = yield tx.channels.update({
-                    where: { id: channelId },
-                    data: { subscriberCount: { increment: 1 } },
-                    select: { userId: true, handle: true, name: true },
-                });
-                //Fire NEW_SUBSCRIBER notification to channel owner (async, non-blocking)
-                NotificationService.notify({
-                    userId: channel.userId,
-                    actorId: userId,
-                    type: "NEW_SUBSCRIBER",
-                    title: "New Subscriber",
-                    message: "subscribed to your channel",
-                    channelId,
-                    actionUrl: `/@${channel.handle}`,
-                    groupKey: `NEW_SUBSCRIBER:${channelId}:${new Date().toISOString().slice(0, 10)}`,
-                }).catch(console.error);
-                return { success: true, action: "SUBSCRIBED" };
-            }
-        }));
+            isSubscribed = !!existing;
+        }
+        const action = isSubscribed ? "UNSUBSCRIBE" : "SUBSCRIBE";
+        // Push to Stream and Cache (Fast Lane)
+        yield StreamService.addSubscription(userId, channelId, action);
+        return { success: true, action: action === "SUBSCRIBE" ? "SUBSCRIBED" : "UNSUBSCRIBED" };
     })),
     checkHandleAvailability: protectedProcedure
         .input(z.object({
@@ -267,17 +278,23 @@ export const channelRouter = router({
         let isSubscribed = false;
         let notificationLevel = "PERSONALIZED";
         if (ctx.session.user.id) {
-            const sub = yield prisma.subscriptions.findUnique({
-                where: {
-                    subscriberId_channelId: {
-                        subscriberId: ctx.session.user.id,
-                        channelId: channel.id,
+            // Hybrid Read: Check Redis cache first (write-behind), then DB
+            const [cachedSub, sub] = yield Promise.all([
+                StreamService.getSubscriptionStatus(ctx.session.user.id, channel.id),
+                prisma.subscriptions.findUnique({
+                    where: {
+                        subscriberId_channelId: {
+                            subscriberId: ctx.session.user.id,
+                            channelId: channel.id,
+                        },
                     },
-                },
-                select: { notificationLevel: true },
-            });
+                    select: { notificationLevel: true },
+                }),
+            ]);
+            isSubscribed = cachedSub !== null
+                ? cachedSub === "SUBSCRIBE"
+                : !!sub;
             if (sub) {
-                isSubscribed = true;
                 notificationLevel = sub.notificationLevel;
             }
         }
@@ -364,5 +381,47 @@ export const channelRouter = router({
             data: { notificationLevel: input.level },
         });
         return { success: result.count > 0 };
+    })),
+    // Paginated list of channels the calling user subscribes to
+    getSubscribedChannels: protectedProcedure
+        .input(z.object({
+        limit: z.number().min(1).max(100).default(50),
+        cursor: z.string().nullish(),
+    }))
+        .query((_a) => __awaiter(void 0, [_a], void 0, function* ({ ctx, input }) {
+        const { limit, cursor } = input;
+        const userId = ctx.session.user.id;
+        const subs = yield prisma.subscriptions.findMany({
+            where: { subscriberId: userId },
+            take: limit + 1,
+            cursor: cursor ? { id: cursor } : undefined,
+            skip: cursor ? 1 : 0,
+            orderBy: { subscribedAt: "desc" },
+            select: {
+                id: true,
+                notificationLevel: true,
+                subscribedAt: true,
+                channels: {
+                    select: {
+                        id: true,
+                        handle: true,
+                        name: true,
+                        image: true,
+                        isVerified: true,
+                        subscriberCount: true,
+                        status: true,
+                    },
+                },
+            },
+        });
+        let nextCursor;
+        if (subs.length > limit) {
+            const next = subs.pop();
+            nextCursor = next.id;
+        }
+        return {
+            items: subs.map((s) => (Object.assign(Object.assign({}, s.channels), { notificationLevel: s.notificationLevel, subscribedAt: s.subscribedAt }))),
+            nextCursor,
+        };
     })),
 });

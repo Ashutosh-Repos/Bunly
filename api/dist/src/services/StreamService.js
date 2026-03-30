@@ -15,13 +15,11 @@ export class StreamService {
      */
     static addViewItem(videoId, ip, userAgent) {
         return __awaiter(this, void 0, void 0, function* () {
-            // 1. Check uniqueness using HyperLogLog
-            // Key: video:u:{videoId}
-            const uniqueKey = `video:u:${videoId}`;
-            const uniqueElement = `${ip}|${userAgent}`; // Use pipe for safer isolation
-            const isNew = yield redis.pfadd(uniqueKey, uniqueElement);
-            // Always refresh TTL to maintain a consistent 24h de-duplication window
-            yield redis.expire(uniqueKey, 86400);
+            // 1. Check uniqueness using standard Expiry Token
+            // Key: view_lock:{videoId}:{ip}
+            const lockKey = `view_lock:${videoId}:${ip}`;
+            // Set the key only if it does not exist (NX), with a 12 hour expiry (EX 43200)
+            const isNew = yield redis.set(lockKey, "1", "EX", 43200, "NX");
             if (isNew) {
                 // 2. Increment buffer (Hash + Dirty Set)
                 // Key: video:v:buf (Hash) -> Field: videoId
@@ -173,6 +171,45 @@ export class StreamService {
             catch (e) {
                 console.warn("Failed to get user reaction from cache", e);
                 return null; // Fallback to DB
+            }
+        });
+    }
+    /**
+     * Add a subscription action to the stream.
+     * 1. Updates Cache (Fast Lane Read) - TTL 30 days
+     * 2. Pushes to Redis Stream (Write Behind)
+     */
+    static addSubscription(subscriberId, channelId, action) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const subKey = `user:subscription:${subscriberId}:${channelId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
+            // 1. Update User Cache for immediate UI feedback. Long TTL because subscriptions are persistent.
+            pipeline.set(subKey, action, "EX", 2592000); // 30 days
+            // 2. Push to Stream for the worker
+            pipeline.xadd("queue:subscriptions", "MAXLEN", "~", 1000000, "*", "data", JSON.stringify({
+                subscriberId,
+                channelId,
+                action,
+                timestamp,
+            }));
+            yield pipeline.exec();
+        });
+    }
+    /**
+     * Get user's current subscription status from Cache.
+     * Returns "SUBSCRIBE" | "UNSUBSCRIBE" | null (if not in cache).
+     */
+    static getSubscriptionStatus(subscriberId, channelId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const subKey = `user:subscription:${subscriberId}:${channelId}`;
+                const cached = yield redis.get(subKey);
+                return cached;
+            }
+            catch (e) {
+                console.warn("Failed to get subscription from cache", e);
+                return null;
             }
         });
     }

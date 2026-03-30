@@ -17,7 +17,57 @@ async function getReaction(
     return db?.type ?? null;
 }
 
+/**
+ * Ensures the target video exists, is not soft-deleted, and is visible to the requesting user.
+ */
+async function verifyEngagementAccess(videoId: string, userId: string) {
+    const video = await prisma.videos.findUnique({
+        where: { id: videoId },
+        select: {
+            visibility: true,
+            processingStatus: true,
+            deletedAt: true,
+            channels: { select: { userId: true } },
+        },
+    });
+
+    if (!video || video.deletedAt) {
+        throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Content not found",
+        });
+    }
+
+    const isOwner = video.channels?.userId === userId;
+    const isPubliclyAvailable =
+        (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") &&
+        video.processingStatus === "READY";
+
+    if (!isPubliclyAvailable && !isOwner) {
+        throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Content not available for engagement",
+        });
+    }
+}
+
 export const engagementRouter = router({
+    /**
+     * Get the current user's reaction (LIKE/DISLIKE/null) for a video.
+     * Used by ShortsClient to hydrate initial engagement state.
+     */
+    getReaction: protectedProcedure
+        .input(z.object({ videoId: z.string().min(1) }))
+        .query(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+            const { videoId } = input;
+
+            const reaction = await getReaction(userId, videoId);
+            const type = reaction === "REMOVE" ? null : reaction;
+
+            return { type };
+        }),
+
     /**
      * Toggle Like on a video.
      * If already liked, removes like.
@@ -29,15 +79,13 @@ export const engagementRouter = router({
             const userId = ctx.session.user.id;
             const { videoId } = input;
 
-            const currentReaction = await getReaction(userId, videoId);
+            // Parallel: verify access + read current reaction (saves 1 DB round-trip)
+            const [, currentReaction] = await Promise.all([
+                verifyEngagementAccess(videoId, userId),
+                getReaction(userId, videoId),
+            ]);
 
-            let action: "LIKE" | "REMOVE" | "DISLIKE" = "LIKE";
-
-            if (currentReaction === "LIKE") {
-                action = "REMOVE";
-            } else {
-                action = "LIKE";
-            }
+            const action: "LIKE" | "REMOVE" = currentReaction === "LIKE" ? "REMOVE" : "LIKE";
 
             await StreamService.addReaction(userId, videoId, action);
 
@@ -53,15 +101,13 @@ export const engagementRouter = router({
             const userId = ctx.session.user.id;
             const { videoId } = input;
 
-            const currentReaction = await getReaction(userId, videoId);
+            // Parallel: verify access + read current reaction
+            const [, currentReaction] = await Promise.all([
+                verifyEngagementAccess(videoId, userId),
+                getReaction(userId, videoId),
+            ]);
 
-            let action: "DISLIKE" | "REMOVE" | "LIKE" = "DISLIKE";
-
-            if (currentReaction === "DISLIKE") {
-                action = "REMOVE";
-            } else {
-                action = "DISLIKE";
-            }
+            const action: "DISLIKE" | "REMOVE" = currentReaction === "DISLIKE" ? "REMOVE" : "DISLIKE";
 
             await StreamService.addReaction(userId, videoId, action);
 

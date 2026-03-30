@@ -6,6 +6,8 @@ export async function handleContentModeration(job: Job) {
 
     console.log(`🛡️ Scanning content for video ${videoId}...`);
 
+    // TODO: Implement actual content moderation (NSFW detection, hash matching, etc.)
+    // This 1-second sleep is a placeholder that adds latency to every video pipeline.
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     console.log(`✅ Content checks passed for ${videoId}`);

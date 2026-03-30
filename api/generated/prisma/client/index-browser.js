@@ -136,6 +136,13 @@ exports.Prisma.AccountScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.JwksScalarFieldEnum = {
+  id: 'id',
+  publicKey: 'publicKey',
+  privateKey: 'privateKey',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.Audit_logsScalarFieldEnum = {
   id: 'id',
   actorId: 'actorId',
@@ -279,7 +286,6 @@ exports.Prisma.PlaylistsScalarFieldEnum = {
   title: 'title',
   description: 'description',
   visibility: 'visibility',
-  thumbnailUrl: 'thumbnailUrl',
   isSystem: 'isSystem',
   systemType: 'systemType',
   videoCount: 'videoCount',
@@ -331,6 +337,8 @@ exports.Prisma.StrikesScalarFieldEnum = {
   issuedAt: 'issuedAt',
   expiresAt: 'expiresAt',
   appealed: 'appealed',
+  appealedAt: 'appealedAt',
+  appealNote: 'appealNote',
   revokedAt: 'revokedAt',
   adminId: 'adminId'
 };
@@ -529,6 +537,12 @@ exports.Prisma.accountOrderByRelevanceFieldEnum = {
   password: 'password'
 };
 
+exports.Prisma.jwksOrderByRelevanceFieldEnum = {
+  id: 'id',
+  publicKey: 'publicKey',
+  privateKey: 'privateKey'
+};
+
 exports.Prisma.JsonNullValueFilter = {
   DbNull: Prisma.DbNull,
   JsonNull: Prisma.JsonNull,
@@ -622,8 +636,7 @@ exports.Prisma.playlistsOrderByRelevanceFieldEnum = {
   userId: 'userId',
   channelId: 'channelId',
   title: 'title',
-  description: 'description',
-  thumbnailUrl: 'thumbnailUrl'
+  description: 'description'
 };
 
 exports.Prisma.reportsOrderByRelevanceFieldEnum = {
@@ -656,6 +669,7 @@ exports.Prisma.strikesOrderByRelevanceFieldEnum = {
   videoId: 'videoId',
   commentId: 'commentId',
   postId: 'postId',
+  appealNote: 'appealNote',
   adminId: 'adminId'
 };
 
@@ -857,6 +871,7 @@ exports.ProcessingStatus = exports.$Enums.ProcessingStatus = {
 
 exports.Prisma.ModelName = {
   account: 'account',
+  jwks: 'jwks',
   audit_logs: 'audit_logs',
   categories: 'categories',
   channels: 'channels',

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
-import { CommentService, CommentSort } from "../../services/CommentService";
+import { CommentService, CommentSort, type CommentListResult } from "../../services/CommentService";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../../lib/prisma";
 
 export const commentRouter = router({
-    list: protectedProcedure
+    list: publicProcedure
         .input(
             z.object({
                 videoId: z.string(),
@@ -16,15 +16,15 @@ export const commentRouter = router({
         )
         .query(async ({ input, ctx }) => {
             const { videoId, sortBy, cursor, limit } = input;
-            const userId = ctx.session.user.id;
+            const userId = ctx.session?.user?.id ?? "";
 
-            return CommentService.getComments(
+            return (await CommentService.getComments(
                 videoId,
                 sortBy as CommentSort,
                 cursor,
                 limit,
                 userId,
-            );
+            )) as CommentListResult;
         }),
 
     getById: protectedProcedure
@@ -53,8 +53,8 @@ export const commentRouter = router({
         )
         .query(async ({ input, ctx }) => {
             const { parentId, cursor, limit } = input;
-            const userId = ctx.session.user?.id;
-            return CommentService.getReplies(parentId, cursor, limit, userId);
+            const userId = ctx.session.user.id;
+            return (await CommentService.getReplies(parentId, cursor, limit, userId)) as CommentListResult;
         }),
 
     create: protectedProcedure
@@ -67,13 +67,15 @@ export const commentRouter = router({
         )
         .mutation(async ({ ctx, input }) => {
             const { videoId, content, parentId } = input;
-            const comment = await CommentService.createComment(
+            // CommentService.createComment handles:
+            // - DB insert + cache invalidation + notifications
+            // - Streaming commentCount/replyCount increments to CommentCountWorker
+            return CommentService.createComment(
                 ctx.session.user.id,
                 videoId,
                 content,
                 parentId,
             );
-            return comment;
         }),
 
     toggleLike: protectedProcedure
@@ -96,12 +98,12 @@ export const commentRouter = router({
             }
 
             // Check current state (Hybrid Read)
-            let current = await CommentService.getUserReaction(
+            const current = await CommentService.getUserReaction(
                 userId,
                 commentId,
             );
 
-            let action: "LIKE" | "REMOVE" | "DISLIKE" = "LIKE";
+            let action: "LIKE" | "REMOVE" = "LIKE";
             if (current === "LIKE") {
                 action = "REMOVE";
             } else {
@@ -136,12 +138,12 @@ export const commentRouter = router({
                 });
             }
 
-            let current = await CommentService.getUserReaction(
+            const current = await CommentService.getUserReaction(
                 userId,
                 commentId,
             );
 
-            let action: "DISLIKE" | "REMOVE" | "LIKE" = "DISLIKE";
+            let action: "DISLIKE" | "REMOVE" = "DISLIKE";
             if (current === "DISLIKE") {
                 action = "REMOVE";
             } else {
@@ -157,12 +159,79 @@ export const commentRouter = router({
             return { status: action };
         }),
 
+    edit: protectedProcedure
+        .input(
+            z.object({
+                commentId: z.string(),
+                content: z.string().min(1).max(2000),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            return CommentService.editComment(
+                input.commentId,
+                ctx.session.user.id,
+                input.content,
+            );
+        }),
+
+    pin: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            return CommentService.pinComment(
+                input.commentId,
+                ctx.session.user.id,
+                input.videoId,
+            );
+        }),
+
+    heart: protectedProcedure
+        .input(z.object({ commentId: z.string(), videoId: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            return CommentService.heartComment(
+                input.commentId,
+                ctx.session.user.id,
+                input.videoId,
+            );
+        }),
+
     delete: protectedProcedure
         .input(z.object({ commentId: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            // CommentService.deleteComment handles:
+            // - Soft delete + cache invalidation
+            // - Streaming commentCount decrement to CommentCountWorker
             return CommentService.deleteComment(
                 input.commentId,
                 ctx.session.user.id,
+            );
+        }),
+
+    getChannelComments: protectedProcedure
+        .input(
+            z.object({
+                channelId: z.string(),
+                cursor: z.string().nullish(),
+                limit: z.number().min(1).max(50).optional().default(20),
+            })
+        )
+        .query(async ({ ctx, input }) => {
+            const { channelId, cursor, limit } = input;
+            
+            // First verify user owns the channel
+            const channel = await prisma.channels.findUnique({
+                where: { id: channelId },
+                select: { userId: true }
+            });
+
+            if (!channel || channel.userId !== ctx.session.user.id) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Not your channel" });
+            }
+
+            return await CommentService.getChannelComments(
+                channelId,
+                cursor ?? null,
+                limit,
+                ctx.session.user.id
             );
         }),
 });

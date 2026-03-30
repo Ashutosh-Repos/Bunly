@@ -1,7 +1,7 @@
 import { Redis } from "ioredis";
-import { env } from "../env.js";
+import config from "./config.js";
 const globalForRedis = global;
-export const redisUrl = env.REDIS_URL;
+export const redisUrl = config.redis.url;
 const createRedisClient = (isBullMQ = false) => {
     // Obfuscate sensitive part for logging
     const logUrl = redisUrl.replace(/\/\/.*@/, "//***:***@");
@@ -23,7 +23,7 @@ const createRedisClient = (isBullMQ = false) => {
             : undefined,
     });
 };
-const redis = process.env.NODE_ENV === "production"
+const redis = config.nodeEnv === "production"
     ? createRedisClient(false)
     : (() => {
         if (!globalForRedis.redis ||

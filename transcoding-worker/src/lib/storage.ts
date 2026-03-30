@@ -39,6 +39,31 @@ const BUCKET_NAME = config.s3.bucket;
 // --- Helpers ---
 
 /**
+ * Robust Exponential Backoff Retry wrapper for network requests
+ */
+export async function withRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 5,
+    baseDelayMs: number = 1000
+): Promise<T> {
+    let attempt = 0;
+    while (true) {
+        try {
+            return await operation();
+        } catch (error: any) {
+            attempt++;
+            if (attempt > maxRetries) {
+                console.error(`[Retry] Operation failed after ${maxRetries} attempts.`);
+                throw error;
+            }
+            const delay = baseDelayMs * Math.pow(2, attempt - 1);
+            console.warn(`[Retry] Attempt ${attempt} failed: ${error.message}. Retrying in ${delay}ms...`);
+            await new Promise((r) => setTimeout(r, delay));
+        }
+    }
+}
+
+/**
  * Download file from S3 to local path with robust error handling
  */
 export async function downloadFile(

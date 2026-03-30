@@ -7,12 +7,14 @@
     "scripts": {
         "dev": "tsx watch src/index.ts",
         "start": "tsx src/index.ts",
-        "build": "tsc"
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint ."
     },
     "dependencies": {
-        "@aws-sdk/client-s3": "^3.1005.0",
-        "@aws-sdk/lib-storage": "^3.1005.0",
-        "@aws-sdk/s3-request-presigner": "^3.1005.0",
+        "@aws-sdk/client-s3": "^3.1004.0",
+        "@aws-sdk/lib-storage": "^3.1004.0",
+        "@aws-sdk/s3-request-presigner": "^3.1004.0",
         "@prisma/adapter-pg": "^7.4.2",
         "@prisma/client": "^7.4.2",
         "bullmq": "^5.70.4",
@@ -29,5 +31,6 @@
         "prisma": "^7.4.2",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3"
-    }
+    },
+    "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
 }

@@ -4,6 +4,7 @@ import { on } from "events";
 import {
     router,
     protectedProcedure,
+    publicProcedure,
     videoProcedure,
     channelProcedure,
 } from "../router.js";
@@ -50,19 +51,21 @@ function buildWsUrl(videoId: string): string {
 }
 
 export async function updateChannelStats(channelId: string) {
-    // 1. Count all videos that are not soft-deleted (including unlisted/private/scheduled)
+    // 1. Count ONLY public videos
     const videoCount = await prisma.videos.count({
         where: {
             channelId,
             deletedAt: null,
+            visibility: "PUBLIC",
         },
     });
 
-    // 2. Sum total views for all videos (unlisted links still accrue views)
+    // 2. Sum total views for ONLY public videos
     const aggregate = await prisma.videos.aggregate({
         where: {
             channelId,
             deletedAt: null,
+            visibility: "PUBLIC",
         },
         _sum: {
             viewCount: true,
@@ -424,8 +427,8 @@ export const videoRouter = router({
         let parts;
         try {
             parts = await listUploadedParts(video.id, video.uploadId);
-        } catch (error: any) {
-            if (error.name === "NoSuchUpload") {
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === "NoSuchUpload") {
                 console.warn(
                     `[Pipeline] ⚠️ NoSuchUpload during resume for ${video.id}. Deleting stale DB record.`,
                 );
@@ -508,9 +511,9 @@ export const videoRouter = router({
                     uploadId,
                     parts as CompletedPart[],
                 );
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // S3 Error Handling & Recovery
-                if (error.name === "NoSuchUpload") {
+                if (error instanceof Error && error.name === "NoSuchUpload") {
                     console.warn(
                         `[Pipeline] ⚠️ NoSuchUpload for ${video.id}. Checking if duplicate or already completed...`,
                     );
@@ -1010,6 +1013,19 @@ export const videoRouter = router({
                 },
             });
 
+            // If transitioning to PUBLIC, set publishedAt for videos that didn't have it
+            if (visibility === "PUBLIC" && previouslyNonPublicIds.length > 0) {
+                await prisma.videos.updateMany({
+                    where: {
+                        id: { in: previouslyNonPublicIds },
+                        publishedAt: null, // Only set if not already set (safety)
+                    },
+                    data: {
+                        publishedAt: new Date(),
+                    },
+                });
+            }
+
             // Update channel stats asynchronously to prevent blocking the UI
             updateChannelStats(channelId).catch((err) =>
                 console.error("[Video] Failed to update channel stats:", err),
@@ -1128,17 +1144,28 @@ export const videoRouter = router({
         )
         .mutation(async ({ ctx, input }) => {
             const { video } = ctx;
-            const { tags, chapters, ...otherData } = input;
+            const { videoId, tags, chapters, ...otherData } = input;
 
             // Sanitize scheduling: clear scheduledAt if not visibility SCHEDULED
-            if (otherData.visibility && otherData.visibility !== "SCHEDULED") {
+            const finalVisibility = otherData.visibility ?? video.visibility;
+            if (finalVisibility !== "SCHEDULED") {
                 otherData.scheduledAt = null;
             }
+
+            // Calculate publishedAt: set if transitioning to PUBLIC and not already set
+            const transitioningToPublic = 
+                otherData.visibility === "PUBLIC" && 
+                ctx.video.visibility !== "PUBLIC";
+            
+            const publishedAt = transitioningToPublic && !ctx.video.publishedAt
+                ? new Date()
+                : undefined;
 
             const updatedVideo = await prisma.videos.update({
                 where: { id: video.id },
                 data: {
                     ...otherData,
+                    publishedAt,
                     ...(tags && {
                         tags: {
                             set: [], // Disconnect all existing tags
@@ -1289,18 +1316,36 @@ export const videoRouter = router({
     // ─── Public Playback Endpoints ───────────────────────────────────
 
     /**
-     * Get a video for public viewing (Watch Page).
-     * Includes "Hybrid Read" for Watch History.
-     */
-    getPublicVideo: protectedProcedure
+      * Get a video for public viewing (Watch Page).
+      * Works for both authenticated and unauthenticated users.
+      * Watch history and engagement are only available for authenticated users.
+      */
+    getPublicVideo: publicProcedure
         .input(z.object({ videoId: z.string().min(1) }))
         .query(async ({ ctx, input }) => {
             const { videoId } = input;
-            const userId = ctx.session.user.id;
+            const userId = ctx.session?.user?.id ?? null;
 
             const video = await prisma.videos.findUnique({
-                where: { id: videoId },
-                include: {
+                where: { id: videoId, deletedAt: null },
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    thumbnailUrl: true,
+                    previewSpriteVtt: true,
+                    previewSprite: true,
+                    duration: true,
+                    visibility: true,
+                    hlsPlaylistUrl: true,
+                    processingStatus: true,
+                    viewCount: true,
+                    likeCount: true,
+                    dislikeCount: true,
+                    commentCount: true,
+                    createdAt: true,
+                    publishedAt: true,
+                    channelId: true,
                     channels: {
                         select: {
                             id: true,
@@ -1317,28 +1362,31 @@ export const videoRouter = router({
                 },
             });
 
-            if (!video || video.deletedAt !== null) {
+            if (!video) {
                 throw new TRPCError({
                     code: "NOT_FOUND",
                     message: "Video not found",
                 });
             }
 
-            const isOwner = video.channels?.userId === userId;
-            if (
-                video.visibility !== "PUBLIC" &&
-                video.visibility !== "UNLISTED" &&
-                !isOwner
-            ) {
+            const isOwner = userId ? video.channels?.userId === userId : false;
+            const isPubliclyAvailable = 
+                (video.visibility === "PUBLIC" || video.visibility === "UNLISTED") && 
+                video.processingStatus === "READY";
+
+            if (!isPubliclyAvailable && !isOwner) {
                 throw new TRPCError({
-                    code: "NOT_FOUND", // Mask private/unlisted as not found for non-owners
-                    message: "Video not found or private",
+                    code: "NOT_FOUND",
+                    message: "Video not found or is unavailable",
                 });
             }
 
-            // Hybrid Read for Watch History
-            let history = null;
+            // User-specific data: only fetch when authenticated
+            let history: { watchedSeconds: number; timestamp?: number } | null = null;
+            let engagement = { liked: false, disliked: false, subscribed: false };
+
             if (userId) {
+                // Hybrid Read for Watch History
                 const dbHistory = await prisma.watch_history.findUnique({
                     where: {
                         userId_videoId: { userId, videoId },
@@ -1349,25 +1397,14 @@ export const videoRouter = router({
                     },
                 });
 
-                // Merge with Redis Session
-                const merged = await StreamService.getMergedHistory(
+                history = await StreamService.getMergedHistory(
                     userId,
                     videoId,
                     dbHistory,
                 );
-                history = merged;
-            }
 
-            // Check if user liked/disliked/subscribed
-            let engagement = {
-                liked: false,
-                disliked: false,
-                subscribed: false,
-            };
-            if (userId) {
-                // Parallel fetch: Cache (Fast) + DB (Reliable/Slow) + Subscription
-                // We fetch DB reaction as fallback or source of truth if cache empty
-                const [cachedReaction, dbReaction, sub] = await Promise.all([
+                // Check if user liked/disliked/subscribed (Hybrid Read for all)
+                const [cachedReaction, dbReaction, dbSub, cachedSub] = await Promise.all([
                     StreamService.getUserReaction(userId, videoId),
                     prisma.video_reactions.findUnique({
                         where: { videoId_userId: { userId, videoId } },
@@ -1380,21 +1417,41 @@ export const videoRouter = router({
                             },
                         },
                     }),
+                    StreamService.getSubscriptionStatus(userId, video.channelId),
                 ]);
 
-                // Hybrid Logic: Cache takes precedence if present
                 const rawReaction = cachedReaction || dbReaction?.type;
                 const reactionType =
                     rawReaction === "REMOVE" ? null : rawReaction;
 
-                engagement.liked = reactionType === "LIKE";
-                engagement.disliked = reactionType === "DISLIKE";
-                engagement.subscribed = !!sub;
+                // Hybrid: prefer cache (write-behind), fall back to DB
+                const isSubscribed = cachedSub !== null
+                    ? cachedSub === "SUBSCRIBE"
+                    : !!dbSub;
+
+                engagement = {
+                    liked: reactionType === "LIKE",
+                    disliked: reactionType === "DISLIKE",
+                    subscribed: isSubscribed,
+                };
             }
 
+            const { channels, ...restVideo } = video;
+            const author = channels ? {
+                id: channels.id,
+                name: channels.name || "Unknown Channel",
+                handle: channels.handle || "",
+                image: channels.image || null,
+                subscriberCount: channels.subscriberCount || 0,
+                // Include userId only if needed by frontend (currently watch-client doesn't need it for author, but keep it if other logic depends?)
+                // Actually watch-client checks video.channels?.userId to see if it's the owner? No, that's done server-side.
+                // Wait, watch owner logic is server-side in `isOwner` check.
+            } : null;
+
             return {
-                ...video,
-                history, // { watchedSeconds: 120, timestamp: ... }
+                ...restVideo,
+                author,
+                history,
                 engagement,
             };
         }),
@@ -1444,5 +1501,116 @@ export const videoRouter = router({
 
             await StreamService.addHistoryItem(userId, videoId, seconds);
             return { success: true };
+        }),
+
+    setChapters: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                chapters: z.array(
+                    z.object({
+                        title: z.string().max(100),
+                        startTime: z.number().int().min(0),
+                    })
+                ),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, chapters } = input;
+
+            await prisma.$transaction([
+                prisma.video_chapters.deleteMany({ where: { videoId } }),
+                prisma.video_chapters.createMany({
+                    data: chapters.map((c) => ({ videoId, ...c })),
+                }),
+            ]);
+
+            return { success: true };
+        }),
+
+    getChapters: protectedProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query(async ({ input }) => {
+            return prisma.video_chapters.findMany({
+                where: { videoId: input.videoId },
+                orderBy: { startTime: "asc" },
+            });
+        }),
+
+    addCard: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                type: z.enum(["VIDEO", "PLAYLIST", "CHANNEL", "LINK", "POLL"]),
+                title: z.string().max(100).optional(),
+                startTime: z.number().int().min(0),
+                endTime: z.number().int().optional(),
+                targetVideoId: z.string().optional(),
+                targetPlaylistId: z.string().optional(),
+                targetChannelId: z.string().optional(),
+                targetUrl: z.string().url().max(500).optional(),
+                pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, ...data } = input;
+            return prisma.video_cards.create({
+                data: {
+                    videoId,
+                    ...data,
+                },
+            });
+        }),
+
+    updateCard: videoProcedure
+        .input(
+            z.object({
+                videoId: z.string(),
+                cardId: z.string(),
+                title: z.string().max(100).optional(),
+                startTime: z.number().int().min(0).optional(),
+                endTime: z.number().int().optional(),
+                targetVideoId: z.string().optional(),
+                targetPlaylistId: z.string().optional(),
+                targetChannelId: z.string().optional(),
+                targetUrl: z.string().url().max(500).optional(),
+                pollOptions: z.array(z.string().min(1).max(200)).min(2).max(10).optional(),
+            })
+        )
+        .mutation(async ({ input }) => {
+            const { videoId, cardId, ...data } = input;
+            
+            const existing = await prisma.video_cards.findUnique({ where: { id: cardId } });
+            if (!existing || existing.videoId !== videoId) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+            }
+
+            return prisma.video_cards.update({
+                where: { id: cardId },
+                data,
+            });
+        }),
+
+    deleteCard: videoProcedure
+        .input(z.object({ videoId: z.string(), cardId: z.string() }))
+        .mutation(async ({ input }) => {
+            const { videoId, cardId } = input;
+            
+            const existing = await prisma.video_cards.findUnique({ where: { id: cardId } });
+            if (!existing || existing.videoId !== videoId) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Card not found on this video" });
+            }
+
+            await prisma.video_cards.delete({ where: { id: cardId } });
+            return { success: true };
+        }),
+
+    getCards: protectedProcedure
+        .input(z.object({ videoId: z.string() }))
+        .query(async ({ input }) => {
+            return prisma.video_cards.findMany({
+                where: { videoId: input.videoId },
+                orderBy: { startTime: "asc" },
+            });
         }),
 });
