@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 
 export const searchRouter = router({
     globalSearch: protectedProcedure

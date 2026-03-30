@@ -1,6 +1,6 @@
-import { prisma } from "../lib/prisma";
-import redis from "../lib/redis";
-import { NotificationType } from "../../generated/prisma/client";
+import { prisma } from "../lib/prisma.js";
+import redis from "../lib/redis.js";
+import { NotificationType } from "@prisma/client";
 
 export class NotificationService {
     private static CHANNEL_PREFIX = "user:notifications";
@@ -17,7 +17,7 @@ export class NotificationService {
         Record<
             NotificationType,
             keyof Omit<
-                import("../../generated/prisma/client").notification_settings,
+                import("@prisma/client").notification_settings,
                 | "id"
                 | "userId"
                 | "createdAt"

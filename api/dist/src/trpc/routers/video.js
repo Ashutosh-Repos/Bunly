@@ -43,14 +43,14 @@ import { v4 as uuidv4 } from "uuid";
 import { on } from "events";
 import { router, protectedProcedure, publicProcedure, videoProcedure, channelProcedure, } from "../router.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import config from "../../lib/config.js";
 import { createMultipartUpload, getPresignedPartUrl, completeMultipartUpload, abortMultipartUpload, listUploadedParts, deleteS3Prefix, } from "../../lib/storage.js";
-import { cacheVideoStatus, cacheVideoMetadata, deleteVideoMetadata, deleteAggregateTracker, getCachedVideoStatus, REDIS_KEYS, VideoStatusEventSchema, } from "../../lib/ws/definitions";
+import { cacheVideoStatus, cacheVideoMetadata, deleteVideoMetadata, deleteAggregateTracker, getCachedVideoStatus, REDIS_KEYS, VideoStatusEventSchema, } from "../../lib/ws/definitions.js";
 import { transcodeQueue, schedulerQueue, JOBS, } from "../../lib/queue-definitions.js";
-import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
-import { StreamService } from "../../services/StreamService";
-import redis from "../../lib/redis";
+import { redisSubscriptionManager } from "../../lib/ws/redisSubscription.js";
+import { StreamService } from "../../services/StreamService.js";
+import redis from "../../lib/redis.js";
 // --- Helpers ---
 /** Build the public WebSocket URL for a given video ID */
 function buildWsUrl(videoId) {

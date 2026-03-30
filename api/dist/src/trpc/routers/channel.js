@@ -22,7 +22,7 @@ import { router, protectedProcedure, channelProcedure } from "../router.js";
 import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { Prisma } from "../../../generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import { StreamService } from "../../services/StreamService.js";
 const channelHandleRegex = /^[a-zA-Z0-9_.]+$/;
 const linkSchema = z.object({

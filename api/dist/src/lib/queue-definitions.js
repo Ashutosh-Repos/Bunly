@@ -1,5 +1,5 @@
 import { Queue, QueueEvents } from "bullmq";
-import { getRedisConnection } from "./redis";
+import { getRedisConnection } from "./redis.js";
 export const QUEUES = {
     TRANSCODE: "transcode-queue",
     ENGAGEMENT: "queue:engagement",

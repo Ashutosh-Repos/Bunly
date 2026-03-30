@@ -1,4 +1,4 @@
-import redis, { redisUrl } from "../redis";
+import redis, { redisUrl } from "../redis.js";
 import { z } from "zod";
 
 // Publisher client (existing redis connection)

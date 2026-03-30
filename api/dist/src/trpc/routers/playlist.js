@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 import { router, protectedProcedure, playlistProcedure, channelProcedure, publicProcedure, } from "../router.js";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 const videoVisibilitySchema = z.enum([

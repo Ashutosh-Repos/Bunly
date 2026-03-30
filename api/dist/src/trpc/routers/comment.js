@@ -9,9 +9,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
-import { CommentService } from "../../services/CommentService";
+import { CommentService } from "../../services/CommentService.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 export const commentRouter = router({
     list: publicProcedure
         .input(z.object({

@@ -7,8 +7,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { prisma } from "../lib/prisma";
-import redis from "../lib/redis";
+import { prisma } from "../lib/prisma.js";
+import redis from "../lib/redis.js";
 export class NotificationService {
     static getChannel(userId) {
         return `${this.CHANNEL_PREFIX}:${userId}`;

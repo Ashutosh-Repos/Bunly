@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import redis from "../lib/redis";
+import redis from "../lib/redis.js";
 export class StreamService {
     /**
      * Add a view item to the "Fast Lane" buffer.

@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import redis from "../redis";
+import redis from "../redis.js";
 import { z } from "zod";
 // Publisher client (existing redis connection)
 export const redisPub = redis;

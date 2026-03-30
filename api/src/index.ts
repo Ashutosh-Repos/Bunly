@@ -34,7 +34,6 @@ const origin = env.CORS_ORIGIN;
 
 const server = Fastify({
     logger: true,
-    maxParamLength: 5000,
 });
 
 // Configure CORS for Next.js frontend

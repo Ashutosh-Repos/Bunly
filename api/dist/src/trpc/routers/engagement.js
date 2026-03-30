@@ -9,9 +9,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { z } from "zod";
 import { protectedProcedure, router } from "../router.js";
-import { StreamService } from "../../services/StreamService";
+import { StreamService } from "../../services/StreamService.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 /** Hybrid cache→DB read for a user's reaction on a video. */
 function getReaction(userId, videoId) {
     return __awaiter(this, void 0, void 0, function* () {

@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { router, protectedProcedure } from "../router.js";
 import { z } from "zod";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import { auth } from "../../lib/auth.js";
 import { TRPCError } from "@trpc/server";
 const socialLinkSchema = z.object({

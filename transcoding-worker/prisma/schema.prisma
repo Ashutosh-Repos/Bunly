@@ -1,6 +1,5 @@
 generator client {
   provider        = "prisma-client-js"
-  output          = "../generated/prisma/client"
   previewFeatures = ["fullTextSearchPostgres"]
 }
 
@@ -27,6 +26,13 @@ model account {
   @@index([userId])
 }
 
+model jwks {
+  id         String   @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime @default(now())
+}
+
 model audit_logs {
   id                                 String   @id @default(cuid())
   actorId                            String?
@@ -39,8 +45,8 @@ model audit_logs {
   ipAddress                          String?
   userAgent                          String?
   createdAt                          DateTime @default(now())
-  user_audit_logs_actorIdTouser      user?    @relation("audit_logs_actorIdTouser", fields: [actorId], references: [id])
-  user_audit_logs_targetUserIdTouser user?    @relation("audit_logs_targetUserIdTouser", fields: [targetUserId], references: [id])
+  user_audit_logs_actorIdTouser      user?    @relation("audit_logs_actorIdTouser", fields: [actorId], references: [id], onDelete: SetNull)
+  user_audit_logs_targetUserIdTouser user?    @relation("audit_logs_targetUserIdTouser", fields: [targetUserId], references: [id], onDelete: SetNull)
 
   @@index([action, createdAt])
   @@index([actorId])
@@ -51,9 +57,9 @@ model audit_logs {
 
 model categories {
   id             String           @id @default(cuid())
-  name           String           @unique
+  name           String           @unique @db.VarChar(100)
   slug           String           @unique
-  description    String?
+  description    String?          @db.VarChar(1000)
   iconUrl        String?
   sortOrder      Int              @default(0)
   createdAt      DateTime         @default(now())
@@ -67,9 +73,9 @@ model categories {
 model channels {
   id              String            @id @default(cuid())
   userId          String
-  handle          String            @unique @db.VarChar(30)
-  name            String            @db.VarChar(50)
-  description     String?
+  handle          String            @unique @db.VarChar(50)
+  name            String            @db.VarChar(100)
+  description     String?           @db.VarChar(5000)
   image           String?
   bannerUrl       String?
   isVerified      Boolean           @default(false)
@@ -94,6 +100,7 @@ model channels {
   videos          videos[]
   tags            tags[]            @relation("ChannelToTag")
 
+  @@unique([subscriberCount(sort: Desc), id(sort: Asc)])
   @@index([createdAt(sort: Desc)])
   @@index([deletedAt])
   @@index([featureFlags], type: Gin)
@@ -140,6 +147,11 @@ model comments {
   reports           reports[]
 
   @@index([deletedAt])
+
+  // Pagination Keysets
+  @@unique([likeCount(sort: Desc), id(sort: Asc)])
+  @@unique([createdAt(sort: Desc), id(sort: Asc)])
+
   @@index([likeCount(sort: Desc)])
   @@index([userId])
   @@index([videoId, parentId, createdAt])
@@ -172,17 +184,17 @@ model community_posts {
 }
 
 model notification_settings {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  newVideos    Boolean  @default(true)
-  liveStreams  Boolean  @default(true)
-  comments     Boolean  @default(true)
-  replies      Boolean  @default(true)
-  likes        Boolean  @default(false)
-  subscribers  Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  newVideos   Boolean  @default(true)
+  liveStreams Boolean  @default(true)
+  comments    Boolean  @default(true)
+  replies     Boolean  @default(true)
+  likes       Boolean  @default(false)
+  subscribers Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        user     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model notifications {
@@ -205,17 +217,18 @@ model notifications {
   groupKey                         String?
   isHidden                         Boolean          @default(false)
   metadata                         Json?
-  user_notifications_actorIdTouser user?            @relation("notifications_actorIdTouser", fields: [actorId], references: [id])
+  user_notifications_actorIdTouser user?            @relation("notifications_actorIdTouser", fields: [actorId], references: [id], onDelete: Cascade)
   channels                         channels?        @relation(fields: [channelId], references: [id], onDelete: Cascade)
   comments                         comments?        @relation(fields: [commentId], references: [id], onDelete: Cascade)
   user_notifications_userIdTouser  user             @relation("notifications_userIdTouser", fields: [userId], references: [id], onDelete: Cascade)
   videos                           videos?          @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([actorId])
-  @@index([type, createdAt(sort: Desc)])
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isRead, createdAt(sort: Desc)])
-  @@index([userId, isHidden, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isRead, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isHidden, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isHidden, type, createdAt(sort: Desc), id(sort: Desc)])
   @@index([videoId, type])
   @@index([groupKey])
   @@index([createdAt])
@@ -242,7 +255,6 @@ model playlists {
   title           String              @db.VarChar(150)
   description     String?
   visibility      VideoVisibility     @default(PUBLIC)
-  thumbnailUrl    String?
   isSystem        Boolean             @default(false)
   systemType      PlaylistSystemType?
   videoCount      Int                 @default(0)
@@ -254,6 +266,7 @@ model playlists {
   user            user                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, systemType])
+  @@unique([videoCount(sort: Desc), id(sort: Asc)])
   @@index([channelId])
   @@index([deletedAt])
   @@index([userId, createdAt(sort: Desc)])
@@ -279,8 +292,8 @@ model reports {
   comments                          comments?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
   user_reports_reportedUserIdTouser user?        @relation("reports_reportedUserIdTouser", fields: [reportedUserId], references: [id], onDelete: Cascade)
   user_reports_reporterIdTouser     user         @relation("reports_reporterIdTouser", fields: [reporterId], references: [id], onDelete: Cascade)
-  user_reports_reviewedByIdTouser   user?        @relation("reports_reviewedByIdTouser", fields: [reviewedById], references: [id])
-  strikes                           strikes?     @relation(fields: [strikeId], references: [id])
+  user_reports_reviewedByIdTouser   user?        @relation("reports_reviewedByIdTouser", fields: [reviewedById], references: [id], onDelete: SetNull)
+  strikes                           strikes?     @relation(fields: [strikeId], references: [id], onDelete: SetNull)
   videos                            videos?      @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@unique([reporterId, commentId])
@@ -309,6 +322,7 @@ model session {
   user           user     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
 }
 
 model strikes {
@@ -325,10 +339,12 @@ model strikes {
   issuedAt                   DateTime   @default(now())
   expiresAt                  DateTime?
   appealed                   Boolean    @default(false)
+  appealedAt                 DateTime?
+  appealNote                 String?
   revokedAt                  DateTime?
   adminId                    String?
   reports                    reports[]
-  user_strikes_adminIdTouser user?      @relation("strikes_adminIdTouser", fields: [adminId], references: [id])
+  user_strikes_adminIdTouser user?      @relation("strikes_adminIdTouser", fields: [adminId], references: [id], onDelete: SetNull)
   channels                   channels?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user_strikes_userIdTouser  user?      @relation("strikes_userIdTouser", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -489,8 +505,8 @@ model video_reactions {
 model videos {
   id                 String             @id @default(cuid())
   channelId          String
-  title              String             @db.VarChar(100)
-  description        String?
+  title              String             @db.VarChar(200)
+  description        String?            @db.VarChar(5000)
   categoryId         String?
   language           String?            @db.VarChar(10)
   channelHandle      String?
@@ -548,11 +564,15 @@ model videos {
   video_cards        video_cards[]
   chapters           video_chapters[]
   video_reactions    video_reactions[]
-  category           categories?        @relation(fields: [categoryId], references: [id])
+  category           categories?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   channels           channels           @relation(fields: [channelId], references: [id], onDelete: Cascade)
   watch_history      watch_history[]
   tags               tags[]             @relation("TagToVideo")
 
+  // Pagination Keysets
+  @@unique([viewCount(sort: Desc), id(sort: Asc)])
+  @@unique([createdAt(sort: Desc), id(sort: Asc)])
+  @@unique([engagementScore(sort: Desc), viewCount(sort: Desc), id(sort: Asc)])
   @@index([categoryId, visibility, hotScore(sort: Desc)])
   @@index([categoryId, visibility, publishedAt(sort: Desc)])
   @@index([channelId])
@@ -572,6 +592,9 @@ model videos {
   // Phase 7: Scaling Recommendations
   @@index([visibility, processingStatus, isShort, hotScore(sort: Desc)])
   @@index([visibility, processingStatus, isShort, trendingScore(sort: Desc)])
+  // Performance optimizations
+  @@index([channelId, deletedAt, publishedAt(sort: Desc)])
+  @@index([channelId, visibility, deletedAt, publishedAt(sort: Desc)])
 }
 
 model watch_history {

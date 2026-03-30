@@ -20,7 +20,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 export const searchRouter = router({
     globalSearch: protectedProcedure
         .input(z.object({

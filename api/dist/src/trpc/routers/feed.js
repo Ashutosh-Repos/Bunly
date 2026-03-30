@@ -20,7 +20,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
-import { FeedService, feedCursorSchema } from "../../services/FeedService";
+import { FeedService, feedCursorSchema } from "../../services/FeedService.js";
 import redis from "../../lib/redis.js";
 export const feedRouter = router({
     getSubscriptionsFeed: protectedProcedure

@@ -7,9 +7,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { prisma } from "../lib/prisma";
-import redis from "../lib/redis";
-import { NotificationService } from "./NotificationService";
+import { prisma } from "../lib/prisma.js";
+import redis from "../lib/redis.js";
+import { NotificationService } from "./NotificationService.js";
 import { TRPCError } from "@trpc/server";
 export class CommentService {
     /**

@@ -17,7 +17,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
 import * as fs from "fs";
-import config from "./config";
+import config from "./config.js";
 
 // Internal endpoint for server-to-server operations (download, upload, delete)
 const internalEndpoint = config.s3.endpoint;

@@ -9,9 +9,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { prisma } from "../../lib/prisma";
-import { StreamService } from "../../services/StreamService";
-import { HistoryService } from "../../services/HistoryService";
+import { prisma } from "../../lib/prisma.js";
+import { StreamService } from "../../services/StreamService.js";
+import { HistoryService } from "../../services/HistoryService.js";
 export const historyRouter = router({
     /**
      * Get watch history with infinite scrolling.

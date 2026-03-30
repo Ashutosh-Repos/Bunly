@@ -1,7 +1,7 @@
-import { prisma } from "../lib/prisma";
-import redis from "../lib/redis";
-import { Prisma } from "../../generated/prisma/client";
-import { NotificationService } from "./NotificationService";
+import { prisma } from "../lib/prisma.js";
+import redis from "../lib/redis.js";
+import { Prisma } from "@prisma/client";
+import { NotificationService } from "./NotificationService.js";
 import { TRPCError } from "@trpc/server";
 
 export type CommentSort = "TOP" | "NEWEST";

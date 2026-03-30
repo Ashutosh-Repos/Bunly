@@ -9,7 +9,7 @@ import {
     channelProcedure,
 } from "../router.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import config from "../../lib/config.js";
 import {
     createMultipartUpload,
@@ -27,18 +27,18 @@ import {
     getCachedVideoStatus,
     REDIS_KEYS,
     VideoStatusEventSchema,
-} from "../../lib/ws/definitions";
+} from "../../lib/ws/definitions.js";
 import {
     transcodeQueue,
     schedulerQueue,
     JOBS,
 } from "../../lib/queue-definitions.js";
-import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
+import { redisSubscriptionManager } from "../../lib/ws/redisSubscription.js";
 
 import { CompletedPart } from "@aws-sdk/client-s3";
 
-import { StreamService } from "../../services/StreamService";
-import redis from "../../lib/redis";
+import { StreamService } from "../../services/StreamService.js";
+import redis from "../../lib/redis.js";
 
 // --- Helpers ---
 
