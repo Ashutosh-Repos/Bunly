@@ -7,11 +7,5 @@ dist
 .DS_Store
 *.seed
 *.log
-Dockerfile
 README.md
-pnpm-lock.yaml
-package.json
-tsconfig.json
-prisma.config.js
-prisma.config.ts
-# Note: package.json and prisma.config.js are explicitly copied in stages, so they are ignored here for the general COPY . .
+# We must NOT ignore package.json or pnpm-lock.yaml because Docker needs them for the COPY steps!
