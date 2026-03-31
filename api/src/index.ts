@@ -23,6 +23,7 @@ const origin = env.CORS_ORIGIN;
 
 const server = Fastify({
     logger: true,
+    trustProxy: true, // Absolutely mandatory for Railway Envoy + Next.js Proxy architecture
 });
 
 // Configure CORS for Next.js frontend
