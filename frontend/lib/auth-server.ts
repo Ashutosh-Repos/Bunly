@@ -6,7 +6,9 @@ import { headers } from "next/headers";
 import type { SessionData } from "@/lib/types";
 
 const AUTH_URL =
-  process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:4000";
+  process.env.API_ORIGIN ||
+  process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
+  "http://localhost:4000";
 
 /**
  * Server-side session fetcher — calls better-auth's native get-session endpoint.
@@ -25,8 +27,18 @@ export const getSession = cache(async (): Promise<SessionData | null> => {
   if (!cookie) return null;
 
   try {
+    // Reconstruct critical headers for strict SSR validation
+    const fetchHeaders = new Headers();
+    fetchHeaders.set("cookie", cookie);
+
+    // Forward origin headers so Better-Auth's CSRF/Origin check succeeds
+    if (heads.get("x-forwarded-for")) fetchHeaders.set("x-forwarded-for", heads.get("x-forwarded-for") as string);
+    if (heads.get("user-agent")) fetchHeaders.set("user-agent", heads.get("user-agent") as string);
+    if (heads.get("host")) fetchHeaders.set("host", heads.get("host") as string);
+    fetchHeaders.set("origin", process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000");
+
     const res = await fetch(`${AUTH_URL}/api/auth/get-session`, {
-      headers: { cookie },
+      headers: fetchHeaders,
       cache: "no-store", // Auth must never be stale
     });
 
