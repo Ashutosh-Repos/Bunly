@@ -19,7 +19,14 @@ export function SocialButtons({ callbackURL = "/" }: SocialButtonsProps) {
 
   const handleSocial = (provider: "google" | "github") => {
     setLoadingProvider(provider);
-    authClient.signIn.social({ provider, callbackURL });
+    
+    // Ensure the callback URL is absolute. Otherwise, the API (Better-Auth)
+    // will resolve a relative "/" against its own domain and 404.
+    const absoluteCallbackURL = typeof window !== "undefined"
+      ? `${window.location.origin}${callbackURL.startsWith('/') ? callbackURL : `/${callbackURL}`}`
+      : callbackURL;
+
+    authClient.signIn.social({ provider, callbackURL: absoluteCallbackURL });
     // No await — browser redirects away to OAuth provider
   };
 
