@@ -24,6 +24,19 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    // If an external API is specified, proxy all frontend /api requests to it.
+    // This perfectly solves cross-domain Auth and Session SSR cookie passing.
+    if (process.env.API_ORIGIN) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${process.env.API_ORIGIN}/api/:path*`,
+        },
+      ];
+    }
+    return [];
+  },
   output: "standalone",
 };
 
