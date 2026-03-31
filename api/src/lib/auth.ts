@@ -62,7 +62,7 @@ import { env } from "../env.js";
 export const auth = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: [env.CORS_ORIGIN],
+    trustedOrigins: env.CORS_ORIGIN,
     appName: "Youtube",
     database: prismaAdapter(prisma, {
         provider: "postgresql",
@@ -85,7 +85,7 @@ export const auth = betterAuth({
     emailVerification: {
         sendVerificationEmail: async ({ user, url }) => {
             const token = new URL(url).searchParams.get("token");
-            const verificationUrl = `${env.CORS_ORIGIN}/auth/verify-email?token=${token}`;
+            const verificationUrl = `${env.APP_URL}/auth/verify-email?token=${token}`;
             await emailService.sendEmailVerificationMail(
                 user.email,
                 verificationUrl,
@@ -100,7 +100,7 @@ export const auth = betterAuth({
         enabled: true,
         sendResetPassword: async ({ user, url }) => {
             const token = new URL(url).searchParams.get("token");
-            const resetUrl = `${env.CORS_ORIGIN}/auth/reset-password?token=${token}`;
+            const resetUrl = `${env.APP_URL}/auth/reset-password?token=${token}`;
             await emailService.sendPasswordResetMail(
                 user.email,
                 resetUrl,

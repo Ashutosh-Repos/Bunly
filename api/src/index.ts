@@ -14,20 +14,9 @@ import { prisma } from "./lib/prisma.js";
 import redis, { bullMQRedis } from "./lib/redis.js";
 import { redisSubscriptionManager } from "./lib/ws/redisSubscription.js";
 import { REDIS_KEYS } from "./lib/ws/definitions.js";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import config from "./lib/config.js";
-import { getPresignedGetUrl } from "./lib/storage.js";
-
-// Shared S3Client for media proxy — avoids creating a new client per .m3u8 request
-const mediaProxyS3 = new S3Client({
-    region: config.s3.region,
-    endpoint: config.s3.endpoint,
-    credentials: {
-        accessKeyId: config.s3.accessKeyId,
-        secretAccessKey: config.s3.secretAccessKey,
-    },
-    forcePathStyle: true,
-});
+import { getPresignedGetUrl, s3Client } from "./lib/storage.js";
 
 const port = env.PORT;
 const origin = env.CORS_ORIGIN;
@@ -201,7 +190,7 @@ server.get("/api/media/*", async (req, reply) => {
                 Key: key,
             });
 
-            const s3Response = await mediaProxyS3.send(command);
+            const s3Response = await s3Client.send(command);
             
             if (!s3Response.Body) {
                 return reply.status(404).send({ error: "Manifest empty or not found" });
@@ -222,9 +211,12 @@ server.get("/api/media/*", async (req, reply) => {
         
         // Cache the redirect for 50 minutes (presigned URLs expire in 60m)
         // Include CORS headers defensively for HLS .ts segment cross-origin requests
+        const requestOrigin = req.headers.origin as string;
+        const allowOrigin = origin.includes(requestOrigin) ? requestOrigin : origin[0];
+
         return reply
             .header("Cache-Control", "public, max-age=3000")
-            .header("Access-Control-Allow-Origin", origin)
+            .header("Access-Control-Allow-Origin", allowOrigin)
             .redirect(url);
     } catch (error: any) {
         if (error.name === "NoSuchKey") {
@@ -235,17 +227,46 @@ server.get("/api/media/*", async (req, reply) => {
     }
 });
 
-// Basic health check outside of tRPC
-server.get("/health", async () => {
-    return { status: "ok", timestamp: new Date().toISOString() };
+// Basic health check with dependency verification
+server.get("/health", async (request, reply) => {
+    try {
+        // 1. Check Database (Prisma)
+        const dbCheck = await prisma
+            .$queryRaw`SELECT 1`
+            .then(() => "ok")
+            .catch((e) => `error: ${e.message}`);
+
+        // 2. Check Redis (Cache)
+        const redisCheck = redis
+            ? await redis
+                  .ping()
+                  .then(() => "ok")
+                  .catch((e) => `error: ${e.message}`)
+            : "not_configured";
+
+        const isHealthy = dbCheck === "ok" && (redisCheck === "ok" || redisCheck === "not_configured");
+
+        return reply.status(isHealthy ? 200 : 503).send({
+            status: isHealthy ? "ok" : "degraded",
+            timestamp: new Date().toISOString(),
+            services: {
+                database: dbCheck,
+                redis: redisCheck,
+            },
+        });
+    } catch (error: any) {
+        server.log.error(error, "Health Check Failure");
+        return reply.status(500).send({
+            status: "error",
+            message: "Internal health check failure",
+        });
+    }
 });
 
 const start = async () => {
     try {
-        await server.listen({ port, host: "0.0.0.0" });
-        console.log(
-            `Server listening on ${origin.replace("3000", port.toString())}`,
-        );
+        const address = await server.listen({ port, host: "0.0.0.0" });
+        console.log(`Server listening on ${address}`);
     } catch (err) {
         server.log.error(err);
         process.exit(1);

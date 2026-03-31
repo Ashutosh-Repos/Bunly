@@ -8,15 +8,16 @@ RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
 # Copy manifest files specifically for caching
 COPY pnpm-lock.yaml package.json ./
+COPY prisma ./prisma/
 
 # Install ALL dependencies (including devDependencies)
+# This will now trigger your "postinstall": "prisma generate" successfully!
 RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the source code
 COPY . .
 
-# Generate Prisma Client and Build TypeScript
-RUN pnpm exec prisma generate
+# Build TypeScript
 RUN pnpm build
 
 # Sanity Check: Ensure the entry point exists before pruning
@@ -48,4 +49,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 
 EXPOSE 4000
 
-CMD ["node", "dist/index.js"]
+# Run migrations and then start the server
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

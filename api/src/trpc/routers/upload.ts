@@ -1,23 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import config from "../../lib/config.js";
-
-// We use the same public endpoint configuration as storage.ts
-// so the frontend is given URLs it can directly hit from the browser.
-const publicEndpoint = config.s3.publicUrl || config.s3.endpoint;
-
-// Initialize a signer client dedicated for generating browser-facing URLs
-const signerClient = new S3Client({
-    region: config.s3.region,
-    endpoint: publicEndpoint,
-    credentials: {
-        accessKeyId: config.s3.accessKeyId,
-        secretAccessKey: config.s3.secretAccessKey,
-    },
-    forcePathStyle: true,
-});
+import { s3Client } from "../../lib/storage.js";
 
 export const uploadRouter = router({
     getPresignedUrl: protectedProcedure
@@ -48,7 +33,7 @@ export const uploadRouter = router({
             // Enforce hard 5MB limit for images
             const MAX_FILE_SIZE = 5 * 1024 * 1024; 
 
-            const { url, fields } = await createPresignedPost(signerClient, {
+            const { url, fields } = await createPresignedPost(s3Client, {
                 Bucket: config.s3.bucket,
                 Key: key,
                 Conditions: [

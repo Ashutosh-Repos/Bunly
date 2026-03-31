@@ -6,22 +6,21 @@ export class StreamService {
      * Uses HyperLogLog for unique counts and Atomic Counters for total views.
      */
     static async addViewItem(videoId: string, ip: string, userAgent: string) {
-        // 1. Check uniqueness using standard Expiry Token
-        // Key: view_lock:{videoId}:{ip}
-        const lockKey = `view_lock:${videoId}:${ip}`;
-        
-        // Set the key only if it does not exist (NX), with a 12 hour expiry (EX 43200)
-        const isNew = await redis.set(lockKey, "1", "EX", 43200, "NX");
+        try {
+            // 1. Check uniqueness using standard Expiry Token
+            const lockKey = `view_lock:${videoId}:${ip}`;
+            const isNew = await redis.set(lockKey, "1", "EX", 43200, "NX");
 
-        if (isNew) {
-            // 2. Increment buffer (Hash + Dirty Set)
-            // Key: video:v:buf (Hash) -> Field: videoId
-            // Key: video:v:dirty (Set) -> Member: videoId
-            // Pipeline to ensure atomicity
-            const pipeline = redis.pipeline();
-            pipeline.hincrby("video:v:buf", videoId, 1);
-            pipeline.sadd("video:v:dirty", videoId);
-            await pipeline.exec();
+            if (isNew) {
+                // 2. Increment buffer (Hash + Dirty Set)
+                const pipeline = redis.pipeline();
+                pipeline.hincrby("video:v:buf", videoId, 1);
+                pipeline.sadd("video:v:dirty", videoId);
+                await pipeline.exec();
+            }
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to add view for ${videoId}:`, error);
+            // Resilience: Continue without view count update
         }
     }
 
@@ -35,43 +34,43 @@ export class StreamService {
         videoId: string,
         seconds: number,
     ) {
-        const timestamp = Date.now();
+        try {
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
 
-        const pipeline = redis.pipeline();
+            // 1. Update Session Cache (Hybrid Read)
+            const sessionKey = `session:${userId}:${videoId}`;
+            pipeline.set(
+                sessionKey,
+                JSON.stringify({
+                    watchedSeconds: seconds,
+                    lastWatchedAt: new Date(timestamp).toISOString(),
+                }),
+                "EX",
+                86400,
+            ); // 1 day TTL
 
-        // 1. Update Session Cache (Hybrid Read)
-        // Key: session:{userId}:{videoId}
-        // Expires in 24 hours to keep Redis lean
-        const sessionKey = `session:${userId}:${videoId}`;
-        pipeline.set(
-            sessionKey,
-            JSON.stringify({
-                watchedSeconds: seconds,
-                lastWatchedAt: new Date(timestamp).toISOString(),
-            }),
-            "EX",
-            86400,
-        ); // 1 day TTL
+            // 2. Push to Stream (Write-Behind)
+            pipeline.xadd(
+                "queue:history",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    userId,
+                    videoId,
+                    seconds,
+                    timestamp,
+                }),
+            );
 
-        // 2. Push to Stream (Write-Behind)
-        // Key: queue:history
-        // MaxLen approx 1000000 to prevent overflow if worker dies
-        pipeline.xadd(
-            "queue:history",
-            "MAXLEN",
-            "~",
-            1000000,
-            "*",
-            "data",
-            JSON.stringify({
-                userId,
-                videoId,
-                seconds,
-                timestamp,
-            }),
-        );
-
-        await pipeline.exec();
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to track history for ${userId} on ${videoId}:`, error);
+            // Resilience: Core flow continues
+        }
     }
 
     /**
@@ -165,37 +164,38 @@ export class StreamService {
         videoId: string,
         type: "LIKE" | "DISLIKE" | "REMOVE",
     ) {
-        const reactionKey = `user:reaction:${userId}:${videoId}`;
-        const timestamp = Date.now();
+        try {
+            const reactionKey = `user:reaction:${userId}:${videoId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
 
-        const pipeline = redis.pipeline();
+            // 1. Update User Cache (Read-Your-Own-Write)
+            if (type === "REMOVE") {
+                pipeline.set(reactionKey, "REMOVE", "EX", 86400);
+            } else {
+                pipeline.set(reactionKey, type, "EX", 86400);
+            }
 
-        // 1. Update User Cache (Read-Your-Own-Write)
-        // We set "REMOVE" explicitly so Hybrid Read knows the user intentionally removed it
-        // even if DB still has the old record.
-        if (type === "REMOVE") {
-            pipeline.set(reactionKey, "REMOVE", "EX", 86400);
-        } else {
-            pipeline.set(reactionKey, type, "EX", 86400); // 24h TTL
+            // 2. Push to Stream
+            pipeline.xadd(
+                "queue:engagement",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    userId,
+                    videoId,
+                    type,
+                    timestamp,
+                }),
+            );
+
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to record reaction for ${userId}:`, error);
         }
-
-        // 2. Push to Stream
-        pipeline.xadd(
-            "queue:engagement",
-            "MAXLEN",
-            "~",
-            1000000,
-            "*",
-            "data",
-            JSON.stringify({
-                userId,
-                videoId,
-                type,
-                timestamp,
-            }),
-        );
-
-        await pipeline.exec();
     }
 
     /**
@@ -223,31 +223,34 @@ export class StreamService {
         channelId: string,
         action: "SUBSCRIBE" | "UNSUBSCRIBE"
     ) {
-        const subKey = `user:subscription:${subscriberId}:${channelId}`;
-        const timestamp = Date.now();
+        try {
+            const subKey = `user:subscription:${subscriberId}:${channelId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
 
-        const pipeline = redis.pipeline();
+            // 1. Update User Cache for immediate UI feedback.
+            pipeline.set(subKey, action, "EX", 2592000); // 30 days
 
-        // 1. Update User Cache for immediate UI feedback. Long TTL because subscriptions are persistent.
-        pipeline.set(subKey, action, "EX", 2592000); // 30 days
+            // 2. Push to Stream for the worker
+            pipeline.xadd(
+                "queue:subscriptions",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    subscriberId,
+                    channelId,
+                    action,
+                    timestamp,
+                }),
+            );
 
-        // 2. Push to Stream for the worker
-        pipeline.xadd(
-            "queue:subscriptions",
-            "MAXLEN",
-            "~",
-            1000000,
-            "*",
-            "data",
-            JSON.stringify({
-                subscriberId,
-                channelId,
-                action,
-                timestamp,
-            }),
-        );
-
-        await pipeline.exec();
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to record subscription for ${subscriberId}:`, error);
+        }
     }
 
     /**

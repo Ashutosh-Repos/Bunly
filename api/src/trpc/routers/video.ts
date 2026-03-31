@@ -18,6 +18,7 @@ import {
     abortMultipartUpload,
     listUploadedParts,
     deleteS3Prefix,
+    headObject,
 } from "../../lib/storage.js";
 import {
     cacheVideoStatus,
@@ -543,8 +544,6 @@ export const videoRouter = router({
                     // 2. Check S3 Object Existence (Source of Truth)
                     // If S3 merge succeeded but DB update failed previously, the upload ID is gone, but the file exists.
                     try {
-                        const { headObject } =
-                            await import("../../lib/storage.js");
                         const exists = await headObject(
                             `raw-videos/${video.id}/source`,
                         );
@@ -565,8 +564,6 @@ export const videoRouter = router({
 
                             // Trigger Transcode (since we recovered, we must ensure downstream works)
                             try {
-                                const { JOBS } =
-                                    await import("../../lib/queue-definitions.js");
                                 await transcodeQueue.add(
                                     JOBS.PROBE_AND_SPLIT,
                                     {
@@ -618,7 +615,6 @@ export const videoRouter = router({
             });
 
             try {
-                const { JOBS } = await import("../../lib/queue-definitions.js");
 
                 const key = `raw-videos/${video.id}/source`;
 
