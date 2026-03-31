@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model account {
@@ -146,12 +147,10 @@ model comments {
   notifications     notifications[]
   reports           reports[]
 
-  @@index([deletedAt])
-
   // Pagination Keysets
   @@unique([likeCount(sort: Desc), id(sort: Asc)])
   @@unique([createdAt(sort: Desc), id(sort: Asc)])
-
+  @@index([deletedAt])
   @@index([likeCount(sort: Desc)])
   @@index([userId])
   @@index([videoId, parentId, createdAt])
