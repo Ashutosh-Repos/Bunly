@@ -184,7 +184,7 @@ export const auth = betterAuth({
         disableCSRFCheck: false,
         disableOriginCheck: false,
         crossSubDomainCookies: {
-            enabled: env.NODE_ENV === "production",
+            enabled: false,
         },
         defaultCookieAttributes: {
             httpOnly: true,
