@@ -13,7 +13,7 @@ COPY prisma.config.js ./
 
 # Install ALL dependencies (including devDependencies)
 # This will now trigger your "postinstall": "prisma generate" successfully!
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
 
 # Copy the rest of the source code
 COPY . .
