@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+.env
+
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/.env
+
+api/node_modules/
+api/dist/
+api/.env
