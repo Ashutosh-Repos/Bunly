@@ -42,7 +42,12 @@ const envSchema = z.object({
     AWS_ACCESS_KEY_ID: z.string().default("minioadmin"),
     AWS_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
     AWS_S3_BUCKET_NAME: z.string().default("youtube-videos"),
-    AWS_REGION: z.string().default("auto"),
+    // Accept both AWS_REGION and AWS_S3_REGION (Railway sets the latter)
+    AWS_REGION: z
+        .preprocess(
+            (val) => val || process.env.AWS_S3_REGION || "auto",
+            z.string(),
+        ),
     
     // Upload tuning
     PRESIGNED_URL_EXPIRY: z.string().default("3600").transform((val) => parseInt(val, 10)),

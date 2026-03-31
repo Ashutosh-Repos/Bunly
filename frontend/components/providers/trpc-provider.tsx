@@ -13,6 +13,11 @@ import superjson from "superjson";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+// We route WebSocket connections through the Next.js rewrite proxy.
+// This forces the browser to treat the connection as same-origin, 
+// securely attaching the SameSite: "lax" session cookies.
+const WS_URL = API_URL.replace(/^http/, "ws");
+
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -30,10 +35,11 @@ function makeTRPCClient() {
   const wsClient =
     typeof window !== "undefined"
       ? createWSClient({
-          url: `${API_URL.replace(/^http/, "ws")}/api/trpc`,
+          url: `${WS_URL}/api/trpc`,
         })
       : null;
 
+  // HTTP requests go through the Next.js rewrite proxy (same-origin for cookies)
   const httpLink = httpBatchLink({
     url: `${API_URL}/api/trpc`,
     transformer: superjson,

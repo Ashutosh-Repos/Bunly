@@ -63,7 +63,7 @@ export const auth = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: env.CORS_ORIGIN,
-    appName: "Youtube",
+    appName: "Bunly",
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),
@@ -189,8 +189,9 @@ export const auth = betterAuth({
         defaultCookieAttributes: {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
-            // If API and App on separate domains, "none" is required, otherwise "lax" is safer mapping domains locally
-            sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+            // With the Next.js rewrite proxy, the browser sees all requests as same-origin,
+            // so "lax" is correct and more secure than "none" (which exposes cookies to CSRF).
+            sameSite: "lax",
         },
     },
     databaseHooks: {

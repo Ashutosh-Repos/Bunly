@@ -4,7 +4,9 @@ import type { AppRouter } from "../../api/src/trpc/appRouter";
 import superjson from "superjson";
 import { headers } from "next/headers";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+// Server-side tRPC calls go directly to the API (server-to-server),
+// bypassing the public Next.js rewrite proxy for lower latency.
+const API_URL = process.env.API_ORIGIN || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
  * Server-side tRPC client — deduplicated per request via React.cache().
