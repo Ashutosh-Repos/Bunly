@@ -11,11 +11,15 @@ const envSchema = z.object({
     
     // Auth
     BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().url().default("http://localhost:4000"),
-    CORS_ORIGIN: z.string().default("http://localhost:3000").transform((val) => {
-        // Normalize to array for easier consumption in Fastify/manual headers
-        return val.split(",").map((o) => o.trim()).filter(Boolean);
-    }),
+    BETTER_AUTH_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional())
+        .default("http://localhost:4000"),
+    CORS_ORIGIN: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().optional())
+        .default("http://localhost:3000")
+        .transform((val) => {
+            return val.split(",").map((o) => o.trim()).filter(Boolean);
+        }),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GITHUB_CLIENT_ID: z.string().optional(),
@@ -23,9 +27,13 @@ const envSchema = z.object({
     
     // Core App settings
     APP_NAME: z.string().default("Bunly"),
-    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
-    APP_URL: z.string().url().default("http://localhost:3000"),
-    PUBLIC_WS_URL: z.string().url().optional(),
+    NEXT_PUBLIC_APP_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional()),
+    APP_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional())
+        .default("http://localhost:3000"),
+    PUBLIC_WS_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional()),
     EMAIL_FROM: z.string().email().default("onlinecodelab@gmail.com"),
     BREVO_API_KEY: z.string().optional(),
     
