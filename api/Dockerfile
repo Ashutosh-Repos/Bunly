@@ -28,6 +28,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 
 # Healthcheck for orchestrators
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
