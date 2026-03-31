@@ -178,8 +178,15 @@ server.get("/api/media/*", async (req, reply) => {
         return reply.status(400).send({ error: "Missing key parameter" });
     }
 
-    // Decode in case of URL encoded components
-    const key = decodeURIComponent(rawKey);
+    // Decode and ensure the key is resilient to bucket-name prefixes or leading slashes
+    let decodedKey = decodeURIComponent(rawKey).replace(/^\/+/, "");
+    
+    // Auto-strip bucket name if provided by legacy frontend or absolute paths
+    if (decodedKey.startsWith(`${config.s3.bucket}/`)) {
+        decodedKey = decodedKey.substring(config.s3.bucket.length + 1);
+    }
+    
+    const key = decodedKey;
 
     try {
         // HLS Text Manifests (.m3u8) MUST be downloaded and served as text by Fastify

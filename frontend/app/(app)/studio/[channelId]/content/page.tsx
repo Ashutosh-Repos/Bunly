@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc-client";
 import { useParams } from "next/navigation";
 import { ProcessingStatusIndicator } from "@/components/custom/processing-status";
 import { getMediaUrl } from "@/lib/utils";
-import Image from "next/image";
+import { BunlyImage } from "@/components/custom/bunly-image";
 import { format } from "date-fns";
 import { formatDuration } from "@/lib/utils";
 import { IconFilter, IconVideo } from "@tabler/icons-react";
@@ -155,7 +155,7 @@ export default function StudioContentPage() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            videos.map((video) => (
+                            videos.map((video, index) => (
                                 <TableRow 
                                     key={video.id} 
                                     className={`group cursor-pointer transition-colors ${
@@ -169,12 +169,13 @@ export default function StudioContentPage() {
                                         <div className="flex gap-4 items-center">
                                             <div className="relative aspect-video w-28 bg-muted rounded overflow-hidden shrink-0 flex items-center justify-center">
                                                 {video.thumbnailUrl ? (
-                                                    <Image 
-                                                        src={getMediaUrl(video.thumbnailUrl)} 
+                                                    <BunlyImage 
+                                                        src={video.thumbnailUrl} 
                                                         alt={video.title} 
                                                         fill
                                                         className="object-cover"
                                                         sizes="(max-width: 768px) 112px, 112px"
+                                                        priority={index < 5}
                                                     />
                                                 ) : (
                                                     <IconVideo size={20} className="text-muted-foreground/30" />

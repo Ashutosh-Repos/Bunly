@@ -12,14 +12,7 @@ export function getMediaUrl(key: string | null | undefined) {
     if (key.startsWith("blob:")) return key;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-    const bucket = process.env.NEXT_PUBLIC_S3_BUCKET_NAME || "youtube-videos";
-
-    let cleanKey = key.replace(/^\/+/, "");
-
-    // If the key accidentally includes the bucket name from legacy DB data, strip it out
-    if (cleanKey.startsWith(`${bucket}/`)) {
-        cleanKey = cleanKey.substring(bucket.length + 1);
-    }
+    const cleanKey = key.replace(/^\/+/, "");
 
     // Use absolute wildcard routing so browser URL resolution math works correctly.
     // Replace spaces and URI encode standard components, but keep slashes intact.

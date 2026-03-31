@@ -111,6 +111,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                             disabled={isPending}
                             variant="overlay"
                             type="banner"
+                            priority={true}
                         />
                     </div>
                     <p className="text-xs text-muted-foreground w-full max-w-2xl">
@@ -131,6 +132,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                             disabled={isPending}
                             variant="overlay"
                             type="avatar"
+                            priority={true}
                         />
                     </div>
                     <p className="text-xs text-muted-foreground max-w-sm">

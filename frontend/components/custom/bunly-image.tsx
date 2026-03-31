@@ -10,6 +10,8 @@ interface BunlyImageProps extends Omit<ImageProps, "src"> {
     src: string | null | undefined;
     fallbackIcon?: React.ReactNode;
     containerClassName?: string;
+    objectFit?: "cover" | "contain" | "fill" | "none" | "scale-down";
+    priority?: boolean;
 }
 
 export function BunlyImage({
@@ -21,6 +23,8 @@ export function BunlyImage({
     fill,
     width,
     height,
+    objectFit = "cover",
+    priority = false,
     ...props
 }: BunlyImageProps) {
     const [isLoading, setIsLoading] = useState(true);
@@ -73,15 +77,17 @@ export function BunlyImage({
 
             <Image
                 src={resolvedUrl}
-                alt={alt || "Image"}
+                alt={alt || "Media content"}
                 fill={fill}
                 width={width}
                 height={height}
+                priority={priority}
                 className={cn(
                     "transition-opacity duration-500",
                     isLoading ? "opacity-0" : "opacity-100",
                     className
                 )}
+                style={{ objectFit }}
                 onLoad={() => setIsLoading(false)}
                 onError={() => {
                     setHasError(true);

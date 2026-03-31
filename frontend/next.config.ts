@@ -15,16 +15,12 @@ const nextConfig: NextConfig = {
         port: "9000",
       },
       {
-        protocol: "http",
-        hostname: "localhost",
-      },
-      {
-        protocol: "http",
-        hostname: "127.0.0.1",
+        protocol: "https",
+        hostname: "laudable-manifestation-production-1555.up.railway.app",
       },
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "*.up.railway.app",
       },
     ],
   },

@@ -6,24 +6,23 @@ WORKDIR /app
 # Corepack to manage pnpm versions natively in node
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
+# Copy manifest files specifically for caching
+COPY pnpm-lock.yaml package.json ./
+
+# Install ALL dependencies (including devDependencies)
+RUN pnpm install --frozen-lockfile
+
 # Build-time envs for Next.js (Injection)
 # These are required because Next.js bakes them into the client-side JS at build time.
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
-ARG NEXT_PUBLIC_S3_BUCKET_NAME
-ARG NEXT_PUBLIC_S3_REGION
 ARG NEXT_PUBLIC_GOOGLE_ENABLED
 ARG NEXT_PUBLIC_GITHUB_ENABLED
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
-ENV NEXT_PUBLIC_S3_BUCKET_NAME=$NEXT_PUBLIC_S3_BUCKET_NAME
-ENV NEXT_PUBLIC_S3_REGION=$NEXT_PUBLIC_S3_REGION
 ENV NEXT_PUBLIC_GOOGLE_ENABLED=$NEXT_PUBLIC_GOOGLE_ENABLED
 ENV NEXT_PUBLIC_GITHUB_ENABLED=$NEXT_PUBLIC_GITHUB_ENABLED
-
-COPY pnpm-lock.yaml package.json ./
-RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build

@@ -16,6 +16,7 @@ interface ImageUploadProps {
     className?: string;
     onRemove?: () => void;
     variant?: "default" | "overlay";
+    priority?: boolean;
 }
 
 const ImageUpload = ({
@@ -26,6 +27,7 @@ const ImageUpload = ({
     className,
     onRemove,
     variant = "default",
+    priority = false,
 }: ImageUploadProps): React.JSX.Element => {
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +133,7 @@ const ImageUpload = ({
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        priority={priority}
                     />
                     <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center gap-3 backdrop-blur-sm">
                         <button
