@@ -16,10 +16,6 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "laudable-manifestation-production-1555.up.railway.app",
-      },
-      {
-        protocol: "https",
         hostname: "*.up.railway.app",
       },
     ],
