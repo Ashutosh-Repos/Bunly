@@ -11,8 +11,15 @@ const envSchema = z.object({
     
     // Auth
     BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().url().default("http://localhost:4000"),
-    CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
+    BETTER_AUTH_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional())
+        .default("http://localhost:4000"),
+    CORS_ORIGIN: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().optional())
+        .default("http://localhost:3000")
+        .transform((val) => {
+            return val.split(",").map((o) => o.trim()).filter(Boolean);
+        }),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GITHUB_CLIENT_ID: z.string().optional(),
@@ -20,10 +27,14 @@ const envSchema = z.object({
     
     // Core App settings
     APP_NAME: z.string().default("Bunly"),
-    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
-    APP_URL: z.string().url().default("http://localhost:3000"),
-    PUBLIC_WS_URL: z.string().url().optional(),
-    EMAIL_FROM: z.string().email().default("clashutosh04@gmail.com"),
+    NEXT_PUBLIC_APP_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional()),
+    APP_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional())
+        .default("http://localhost:3000"),
+    PUBLIC_WS_URL: z
+        .preprocess((val) => (val === "" ? undefined : val), z.string().url().optional()),
+    EMAIL_FROM: z.string().email().default("onlinecodelab@gmail.com"),
     BREVO_API_KEY: z.string().optional(),
     
     // S3-compatible Storage (Local: MinIO, Production: Railway Bucket)
@@ -31,19 +42,19 @@ const envSchema = z.object({
     AWS_ACCESS_KEY_ID: z.string().default("minioadmin"),
     AWS_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
     AWS_S3_BUCKET_NAME: z.string().default("youtube-videos"),
-    AWS_REGION: z.string().default("auto"),
-    PUBLIC_S3_URL: z.string().url().optional(),
+    // Accept both AWS_REGION and AWS_S3_REGION (Railway sets the latter)
+    AWS_REGION: z
+        .preprocess(
+            (val) => val || process.env.AWS_S3_REGION || "auto",
+            z.string(),
+        ),
     
-    // Tuning and worker config
+    // Upload tuning
     PRESIGNED_URL_EXPIRY: z.string().default("3600").transform((val) => parseInt(val, 10)),
     UPLOAD_DB_EXPIRY: z.string().default("86400").transform((val) => parseInt(val, 10)),
-    TRANSCODER_CONCURRENCY: z.string().default("2").transform((val) => parseInt(val, 10)),
-    TRANSCODER_RETRIES: z.string().default("3").transform((val) => parseInt(val, 10)),
     
-    // Worker identity (Horizontal scaling)
-    NODE_ID: z.string().optional(),
-    HOSTNAME: z.string().optional(),
-    NEXT_PHASE: z.string().optional(), // Used to skip heavy init during Next.js build
+    // Build detection
+    NEXT_PHASE: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

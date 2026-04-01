@@ -1,5 +1,5 @@
-import { prisma } from "../lib/prisma";
-import redis from "../lib/redis";
+import { prisma } from "../lib/prisma.js";
+import redis from "../lib/redis.js";
 
 export class HistoryService {
     private static PAGE_SIZE = 20;

@@ -24,7 +24,9 @@ const PUBLIC_AUTH_ROUTES = [
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSession = !!request.cookies.get("better-auth.session_token");
+  const hasSession = 
+    !!request.cookies.get("better-auth.session_token") || 
+    !!request.cookies.get("__Secure-better-auth.session_token");
   const isPublicPath = PUBLIC_AUTH_ROUTES.some((p) => pathname.startsWith(p));
 
   // ── Authenticated user on auth pages → bounce home ──────────────────

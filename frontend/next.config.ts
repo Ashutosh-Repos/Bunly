@@ -15,18 +15,23 @@ const nextConfig: NextConfig = {
         port: "9000",
       },
       {
-        protocol: "http",
-        hostname: "localhost",
-      },
-      {
-        protocol: "http",
-        hostname: "127.0.0.1",
-      },
-      {
         protocol: "https",
-        hostname: "**",
+        hostname: "*.up.railway.app",
       },
     ],
+  },
+  async rewrites() {
+    // If an external API is specified, proxy all frontend /api requests to it.
+    // This perfectly solves cross-domain Auth and Session SSR cookie passing.
+    if (process.env.API_ORIGIN) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${process.env.API_ORIGIN}/api/:path*`,
+        },
+      ];
+    }
+    return [];
   },
   output: "standalone",
 };

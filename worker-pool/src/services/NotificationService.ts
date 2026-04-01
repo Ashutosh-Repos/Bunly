@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import redis from "../lib/redis.js";
-import { NotificationType } from "../../generated/prisma/client/index.js";
+import { NotificationType } from "@prisma/client";
 
 export class NotificationService {
     private static CHANNEL_PREFIX = "user:notifications";

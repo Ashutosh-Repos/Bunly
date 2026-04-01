@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../router.js";
-import { NotificationService } from "../../services/NotificationService";
-import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
+import { NotificationService } from "../../services/NotificationService.js";
+import { redisSubscriptionManager } from "../../lib/ws/redisSubscription.js";
 import { on } from "events";
-import { prisma } from "../../lib/prisma";
-import { NotificationType } from "../../../generated/prisma/client";
+import { prisma } from "../../lib/prisma.js";
+import { NotificationType } from "@prisma/client";
 
 // Filter tab → NotificationType mapping (YouTube-style)
 const TYPE_FILTER_MAP: Record<string, NotificationType[]> = {

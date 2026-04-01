@@ -17,29 +17,12 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
 import * as fs from "fs";
-import config from "./config";
+import config from "./config.js";
 
-// Internal endpoint for server-to-server operations (download, upload, delete)
-const internalEndpoint = config.s3.endpoint;
-
-const s3Client = new S3Client({
+// Standard S3Client used for all operations (Storage & Presigning)
+export const s3Client = new S3Client({
     region: config.s3.region,
-    endpoint: internalEndpoint,
-    credentials: {
-        accessKeyId: config.s3.accessKeyId,
-        secretAccessKey: config.s3.secretAccessKey,
-    },
-    forcePathStyle: true,
-});
-
-// Public endpoint for browser-facing presigned URLs
-// On Railway: PUBLIC_S3_URL = "https://t3.storageapi.dev"
-// Locally: falls back to the same internal endpoint
-const publicEndpoint = config.s3.publicUrl || internalEndpoint;
-
-const signerClient = new S3Client({
-    region: config.s3.region,
-    endpoint: publicEndpoint,
+    endpoint: config.s3.endpoint,
     credentials: {
         accessKeyId: config.s3.accessKeyId,
         secretAccessKey: config.s3.secretAccessKey,
@@ -75,8 +58,12 @@ export async function downloadFile(
         try {
             await pipeline(response.Body, writer);
         } catch (err) {
-            // Cleanup partial file on error
-            if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+            // Cleanup partial file safely — avoid throwing if deletion fails
+            try {
+                if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+            } catch (cleanupErr) {
+                console.warn(`[S3] ⚠️ Cleanup failed for ${localPath}:`, (cleanupErr as Error).message);
+            }
             throw err;
         }
     } else {
@@ -175,8 +162,8 @@ export async function getPresignedPartUrl(
     });
 
     // Expire in 1 hour (plenty for a 5MB chunk)
-    // Use signerClient so the URL contains the public hostname
-    return await getSignedUrl(signerClient, command, { expiresIn: 3600 });
+    // Use s3Client so the URL contains the configured endpoint
+    return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
 }
 
 /**
@@ -191,8 +178,8 @@ export async function getPresignedGetUrl(
         Key: key,
     });
 
-    // Use signerClient so the URL contains the public hostname
-    return await getSignedUrl(signerClient, command, { expiresIn });
+    // Use s3Client so the URL contains the configured endpoint
+    return await getSignedUrl(s3Client, command, { expiresIn });
 }
 
 /**

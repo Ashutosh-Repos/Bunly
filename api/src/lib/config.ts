@@ -21,7 +21,6 @@ export const config = {
         secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
         bucket: env.AWS_S3_BUCKET_NAME,
         region: env.AWS_REGION,
-        publicUrl: env.PUBLIC_S3_URL || null,
     },
     db: {
         url: env.DATABASE_URL,
@@ -29,12 +28,6 @@ export const config = {
     redis: {
         url: env.REDIS_URL,
     },
-    queue: {
-        concurrency: env.TRANSCODER_CONCURRENCY,
-        attempts: env.TRANSCODER_RETRIES,
-    },
-    // Node-specific settings for horizontal scaling
-    nodeId: env.NODE_ID || env.HOSTNAME || `node-${process.pid}`,
 };
 
 export default config;

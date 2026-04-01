@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../router.js";
-import { CommentService, CommentSort, type CommentListResult } from "../../services/CommentService";
+import { CommentService, CommentSort, type CommentListResult } from "../../services/CommentService.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 
 export const commentRouter = router({
     list: publicProcedure

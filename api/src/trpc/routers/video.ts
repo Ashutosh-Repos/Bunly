@@ -9,7 +9,7 @@ import {
     channelProcedure,
 } from "../router.js";
 import { TRPCError } from "@trpc/server";
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 import config from "../../lib/config.js";
 import {
     createMultipartUpload,
@@ -18,6 +18,7 @@ import {
     abortMultipartUpload,
     listUploadedParts,
     deleteS3Prefix,
+    headObject,
 } from "../../lib/storage.js";
 import {
     cacheVideoStatus,
@@ -27,18 +28,18 @@ import {
     getCachedVideoStatus,
     REDIS_KEYS,
     VideoStatusEventSchema,
-} from "../../lib/ws/definitions";
+} from "../../lib/ws/definitions.js";
 import {
     transcodeQueue,
     schedulerQueue,
     JOBS,
 } from "../../lib/queue-definitions.js";
-import { redisSubscriptionManager } from "../../lib/ws/redisSubscription";
+import { redisSubscriptionManager } from "../../lib/ws/redisSubscription.js";
 
 import { CompletedPart } from "@aws-sdk/client-s3";
 
-import { StreamService } from "../../services/StreamService";
-import redis from "../../lib/redis";
+import { StreamService } from "../../services/StreamService.js";
+import redis from "../../lib/redis.js";
 
 // --- Helpers ---
 
@@ -543,8 +544,6 @@ export const videoRouter = router({
                     // 2. Check S3 Object Existence (Source of Truth)
                     // If S3 merge succeeded but DB update failed previously, the upload ID is gone, but the file exists.
                     try {
-                        const { headObject } =
-                            await import("../../lib/storage.js");
                         const exists = await headObject(
                             `raw-videos/${video.id}/source`,
                         );
@@ -565,8 +564,6 @@ export const videoRouter = router({
 
                             // Trigger Transcode (since we recovered, we must ensure downstream works)
                             try {
-                                const { JOBS } =
-                                    await import("../../lib/queue-definitions.js");
                                 await transcodeQueue.add(
                                     JOBS.PROBE_AND_SPLIT,
                                     {
@@ -618,7 +615,6 @@ export const videoRouter = router({
             });
 
             try {
-                const { JOBS } = await import("../../lib/queue-definitions.js");
 
                 const key = `raw-videos/${video.id}/source`;
 

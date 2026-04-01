@@ -62,8 +62,8 @@ import { env } from "../env.js";
 export const auth = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: [env.CORS_ORIGIN],
-    appName: "Youtube",
+    trustedOrigins: env.CORS_ORIGIN,
+    appName: "Bunly",
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),
@@ -85,7 +85,7 @@ export const auth = betterAuth({
     emailVerification: {
         sendVerificationEmail: async ({ user, url }) => {
             const token = new URL(url).searchParams.get("token");
-            const verificationUrl = `${env.CORS_ORIGIN}/auth/verify-email?token=${token}`;
+            const verificationUrl = `${env.APP_URL}/auth/verify-email?token=${token}`;
             await emailService.sendEmailVerificationMail(
                 user.email,
                 verificationUrl,
@@ -100,7 +100,7 @@ export const auth = betterAuth({
         enabled: true,
         sendResetPassword: async ({ user, url }) => {
             const token = new URL(url).searchParams.get("token");
-            const resetUrl = `${env.CORS_ORIGIN}/auth/reset-password?token=${token}`;
+            const resetUrl = `${env.APP_URL}/auth/reset-password?token=${token}`;
             await emailService.sendPasswordResetMail(
                 user.email,
                 resetUrl,
@@ -184,13 +184,14 @@ export const auth = betterAuth({
         disableCSRFCheck: false,
         disableOriginCheck: false,
         crossSubDomainCookies: {
-            enabled: env.NODE_ENV === "production",
+            enabled: false,
         },
         defaultCookieAttributes: {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
-            // If API and App on separate domains, "none" is required, otherwise "lax" is safer mapping domains locally
-            sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+            // With the Next.js rewrite proxy, the browser sees all requests as same-origin,
+            // so "lax" is correct and more secure than "none" (which exposes cookies to CSRF).
+            sameSite: "lax",
         },
     },
     databaseHooks: {

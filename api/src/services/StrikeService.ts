@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+import { prisma } from "../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
 
 export type StrikeType = "WARNING" | "COMMUNITY_GUIDELINE" | "COPYRIGHT";

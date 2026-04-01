@@ -118,6 +118,7 @@ export function DetailsStep() {
                                 alt="Custom Thumbnail" 
                                 fill
                                 className="object-cover" 
+                                priority={true}
                             />
                             <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5 z-20">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -137,6 +138,7 @@ export function DetailsStep() {
                                     alt={`Thumbnail option ${i + 1}`} 
                                     fill
                                     className="object-cover"
+                                    priority={true}
                                 />
                                 {currentThumbnail === key && (
                                     <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5 z-20">

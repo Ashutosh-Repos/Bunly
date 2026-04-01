@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, auditedAdminProcedure } from "../router.js";
 import { prisma } from "../../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
-import { AdminContentStatus, ChannelStatus } from "../../../generated/prisma/client/index.js";
+import { AdminContentStatus, ChannelStatus } from "@prisma/client";
 
 export const adminRouter = router({
     getStats: auditedAdminProcedure.query(async () => {
