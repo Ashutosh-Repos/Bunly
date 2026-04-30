@@ -72,7 +72,7 @@ graph TD
     Client -->|tRPC / Auth| Next[Next.js SSR Proxy]
     Next -->|API Calls| Fastify[Fastify Core API]
 
-    Fastify -->|Queues Video Task| BullMQ[BullMQ (Redis)]
+    Fastify -->|Queues Video Task| BullMQ[BullMQ Redis]
     Fastify -->|Streams Fast Events| RedisStreams[Redis Streams]
     Fastify -->|Standard Queries| Postgres[(PostgreSQL)]
 
