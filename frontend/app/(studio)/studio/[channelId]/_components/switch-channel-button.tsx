@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptionalStudio } from "./studio-provider";
+import { useStudio } from "./studio-provider";
 import { Button } from "@/components/ui/button";
 import { IconArrowsExchange, IconCheck } from "@tabler/icons-react";
 import {
@@ -16,9 +16,7 @@ import { getMediaUrl } from "@/lib/utils";
 import Link from "next/link";
 
 export function SwitchChannelButton() {
-    const studio = useOptionalStudio();
-    if (!studio) return null;
-    const { channel: currentChannel, allChannels } = studio;
+    const { channel: currentChannel, allChannels } = useStudio();
 
     return (
         <DropdownMenu>

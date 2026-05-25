@@ -89,13 +89,6 @@ export default function StudioContentPage() {
         <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Channel content</h1>
-                <div className="flex items-center gap-3 shrink-0">
-                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
-                        <IconVideoPlus className="h-4 w-4" />
-                        <span>Create</span>
-                    </Button>
-                    <SwitchChannelButton />
-                </div>
             </div>
 
             <div className="flex items-center gap-4 mb-6">

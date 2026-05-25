@@ -189,13 +189,6 @@ export default function StudioCommunityPage() {
                         Engage with your fans through text posts, images, and polls.
                     </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
-                        <IconVideoPlus className="h-4 w-4" />
-                        <span>Create</span>
-                    </Button>
-                    <SwitchChannelButton />
-                </div>
             </div>
 
             {/* Composer */}

@@ -85,13 +85,6 @@ export default function StudioCommentsPage() {
                         Review and engage with comments across all your videos.
                     </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
-                        <IconVideoPlus className="h-4 w-4" />
-                        <span>Create</span>
-                    </Button>
-                    <SwitchChannelButton />
-                </div>
             </div>
 
             <Card className="overflow-hidden">

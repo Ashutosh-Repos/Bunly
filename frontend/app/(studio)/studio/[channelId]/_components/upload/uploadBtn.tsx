@@ -5,11 +5,7 @@ import { IconVideoPlus } from '@tabler/icons-react'
 import { useUpload } from "@/components/providers/upload-provider";
 
 
-import { useOptionalStudio } from "../studio-provider";
-
 const UploadBtn = () => {
-    const studio = useOptionalStudio();
-    if (!studio) return null;
     const { openModal } = useUpload();
   return (
     <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">

@@ -19,21 +19,7 @@ export default async function StudioRootLayout({
         id="studio-root-layout-wrapper"
         className="w-full h-screen flex flex-col overflow-hidden bg-background"
       >
-        <TopBar>
-          <div className="flex-1 flex justify-center max-w-xl mx-auto">
-            
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <UploadBtn/>
-            <SwitchChannelButton/>
-            <NotificationBell />
-            <ThemeToggle />
-          </div>
-        </TopBar>
-        
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {children}
-        </div>
+        {children}
       </main>
     </SessionProvider>
   );

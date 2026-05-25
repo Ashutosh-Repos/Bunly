@@ -244,8 +244,6 @@ function RecentCommentsWidget({ channelId }: { channelId: string }) {
     );
 }
 
-import { SwitchChannelButton } from "./_components/switch-channel-button";
-import UploadBtn from "./_components/upload/uploadBtn";
 
 /* ─── Page ─── */
 export default function StudioDashboardPage() {
