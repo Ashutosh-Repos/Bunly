@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getMediaUrl } from "@/lib/utils";
 import { IconPlus } from "@tabler/icons-react";
-import type { Channel } from "@/app/(app)/studio/[channelId]/_components/studio-provider";
+import type { Channel } from "@/app/(studio)/studio/[channelId]/_components/studio-provider";
 
 export function ChannelSelectionClient({ channels }: { channels: Channel[] }) {
     return (

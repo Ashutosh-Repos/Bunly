@@ -36,8 +36,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  const PROTECTED_PREFIXES = ["/me", "/studio", "/feed", "/playlist"];
+  const isProtectedPath = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
   // ── Unauthenticated user on protected page → send to login ──────────
-  if (!hasSession && !isPublicPath) {
+  if (!hasSession && isProtectedPath) {
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);

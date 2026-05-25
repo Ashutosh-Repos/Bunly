@@ -1,7 +1,4 @@
-import { getSession } from "@/lib/auth-server";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { requireOnboarded } from "@/lib/auth-server";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { HomeIcon } from "@/components/ui/home";
 import { FlameIcon } from "@/components/ui/flame";
@@ -13,16 +10,12 @@ import { SearchForm } from "@/components/custom/search-form";
 import { NavigationDock } from "@/components/custom/navigation-dock";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
 
-export default async function AppLayout({
+export default async function MeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession();
-  if (session && !session.user.dob) {
-    redirect("/auth/onboarding");
-  }
-
+  const session = await requireOnboarded();
   const navItems = [
         { icon: HomeIcon, title: "Home", href: "/" },
         { icon: FlameIcon, title: "Trending", href: "/trending" },
@@ -33,7 +26,7 @@ export default async function AppLayout({
   return (
     <SessionProvider initialSession={session}>
       <main
-        id="home-layout-wrapper"
+        id="me-layout-wrapper"
         className="w-full h-screen flex flex-col overflow-hidden bg-background"
       >
         <TopBar>
@@ -41,15 +34,7 @@ export default async function AppLayout({
             <SearchForm />
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            {session ? (
-              <NotificationBell />
-            ) : (
-              <Link href="/auth/login" prefetch={false}>
-                <Button variant="outline" className="rounded-full font-bold px-4">
-                  Sign In
-                </Button>
-              </Link>
-            )}
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </TopBar>

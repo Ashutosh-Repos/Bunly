@@ -18,15 +18,19 @@ import {
     IconSend,
     IconCornerDownRight,
     IconX,
+    IconVideoPlus,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { getMediaUrl } from "@/lib/utils";
+import { useUpload } from "@/components/providers/upload-provider";
+import { SwitchChannelButton } from "../_components/switch-channel-button";
 import Link from "next/link";
 import Image from "next/image";
 
 export default function StudioCommentsPage() {
     const { channel } = useStudio();
     const utils = trpc.useUtils();
+    const { openModal } = useUpload();
 
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyContent, setReplyContent] = useState("");
@@ -74,11 +78,20 @@ export default function StudioCommentsPage() {
 
     return (
         <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-6xl mx-auto space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Channel Comments</h1>
-                <p className="text-muted-foreground">
-                    Review and engage with comments across all your videos.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Channel Comments</h1>
+                    <p className="text-muted-foreground">
+                        Review and engage with comments across all your videos.
+                    </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
+                        <IconVideoPlus className="h-4 w-4" />
+                        <span>Create</span>
+                    </Button>
+                    <SwitchChannelButton />
+                </div>
             </div>
 
             <Card className="overflow-hidden">

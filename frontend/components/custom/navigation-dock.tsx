@@ -9,10 +9,27 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { 
+    IconArrowLeft,
+    IconLayoutDashboard,
+    IconVideo,
+    IconMessageCircle,
+    IconUsers,
+    IconSettings,
+    IconLogout
+} from "@tabler/icons-react";
+
+const STUDIO_ICONS: Record<string, React.ElementType> = {
+    dashboard: IconLayoutDashboard,
+    content: IconVideo,
+    comments: IconMessageCircle,
+    community: IconUsers,
+    settings: IconSettings,
+    exit: IconLogout,
+};
 
 export interface NavItem {
-    icon: React.ElementType;
+    icon: React.ElementType | string;
     title: string;
     href: string;
 }
@@ -25,8 +42,19 @@ export const NavigationDock = ({ navLinks }: { navLinks: NavItem[] }) => {
             {/* main nav */}
             <nav className="w-full h-max flex items-center justify-evenly sm:flex-col gap-3">
                 {navLinks.map((item: NavItem, idx: number) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+                    const Icon = typeof item.icon === "string" 
+                        ? (STUDIO_ICONS[item.icon] || IconArrowLeft) 
+                        : item.icon;
+                    const hasLongerMatch = navLinks.some(link => 
+                        link.href !== item.href && 
+                        link.href.startsWith(item.href + "/") && 
+                        pathname.startsWith(link.href)
+                    );
+                    const isActive = hasLongerMatch 
+                        ? false 
+                        : item.href === "/"
+                            ? pathname === "/"
+                            : pathname === item.href || pathname.startsWith(item.href + "/");
 
                     return (
                         <Tooltip key={idx + item.title}>

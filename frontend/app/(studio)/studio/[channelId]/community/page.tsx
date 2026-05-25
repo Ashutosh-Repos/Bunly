@@ -21,13 +21,17 @@ import {
     IconUpload,
     IconHeart,
     IconTrash,
+    IconVideoPlus,
 } from "@tabler/icons-react";
 import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
 import { getMediaUrl } from "@/lib/utils";
+import { useUpload } from "@/components/providers/upload-provider";
+import { SwitchChannelButton } from "../_components/switch-channel-button";
 
 export default function StudioCommunityPage() {
     const { channel } = useStudio();
+    const { openModal } = useUpload();
     const [content, setContent] = useState("");
     const [postType, setPostType] = useState<"TEXT" | "IMAGE" | "POLL">("TEXT");
 
@@ -178,11 +182,20 @@ export default function StudioCommunityPage() {
 
     return (
         <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Community</h1>
-                <p className="text-muted-foreground">
-                    Engage with your fans through text posts, images, and polls.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Community</h1>
+                    <p className="text-muted-foreground">
+                        Engage with your fans through text posts, images, and polls.
+                    </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
+                        <IconVideoPlus className="h-4 w-4" />
+                        <span>Create</span>
+                    </Button>
+                    <SwitchChannelButton />
+                </div>
             </div>
 
             {/* Composer */}

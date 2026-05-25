@@ -2,9 +2,9 @@ import { TRPCClientError } from "@trpc/client";
 import { getTrpcServer } from "@/lib/trpc-server";
 import { redirect } from "next/navigation";
 import { StudioProvider, type Channel } from "./_components/studio-provider";
-import { StudioNavbar } from "./_components/studio-navbar";
 import { UploadModal } from "./_components/upload/upload-modal";
 import { MinimizedUploadWidget } from "./_components/upload/minimized-upload-widget";
+import { NavigationDock } from "@/components/custom/navigation-dock";
 
 export default async function StudioLayout(props: {
     children: React.ReactNode;
@@ -50,15 +50,30 @@ export default async function StudioLayout(props: {
         redirect("/studio");
     }
 
+    const studioNavItems = [
+        { icon: "dashboard", title: "Dashboard", href: `/studio/${channelId}` },
+        { icon: "content", title: "Content", href: `/studio/${channelId}/content` },
+        { icon: "comments", title: "Comments", href: `/studio/${channelId}/comments` },
+        { icon: "community", title: "Community", href: `/studio/${channelId}/community` },
+        { icon: "settings", title: "Settings", href: `/studio/${channelId}/settings` },
+    ];
+
     return (
         <StudioProvider channel={activeChannel} allChannels={channels}>
-            <div className="flex flex-col min-h-screen bg-background min-w-0">
-                <StudioNavbar />
-                <main className="flex-1">
-                    {children}
-                </main>
-                <UploadModal />
-                <MinimizedUploadWidget />
+            <div className="w-full flex-1 flex flex-col-reverse sm:flex-row items-stretch overflow-hidden">
+                <NavigationDock navLinks={studioNavItems} />
+                <div
+                    id="main-scroll-container"
+                    className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6"
+                >
+                    <div className="flex flex-col min-h-screen bg-background min-w-0">
+                        <main className="flex-1">
+                            {children}
+                        </main>
+                        <UploadModal />
+                        <MinimizedUploadWidget />
+                    </div>
+                </div>
             </div>
         </StudioProvider>
     );

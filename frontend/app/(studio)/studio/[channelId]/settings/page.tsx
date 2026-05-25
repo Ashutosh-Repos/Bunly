@@ -1,9 +1,12 @@
 "use client";
 
-import { IconLoader2 } from "@tabler/icons-react";
+import { IconLoader2, IconVideoPlus } from "@tabler/icons-react";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc-client";
 import { useStudio } from "../_components/studio-provider";
+import { Button } from "@/components/ui/button";
+import { useUpload } from "@/components/providers/upload-provider";
+import { SwitchChannelButton } from "../_components/switch-channel-button";
 
 import { GeneralSettings } from "./_components/general-settings";
 import { MediaSettings } from "./_components/media-settings";
@@ -13,6 +16,7 @@ import { DangerZone } from "./_components/danger-zone";
 
 export default function SettingsPage() {
     const { channel } = useStudio();
+    const { openModal } = useUpload();
 
     const { data, isLoading } = trpc.channel.getChannelById.useQuery(
         { channelId: channel.id },
@@ -32,11 +36,20 @@ export default function SettingsPage() {
 
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 lg:px-8 space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Channel Settings</h1>
-                <p className="text-muted-foreground mt-2">
-                    Manage your channel&apos;s public profile, discovery metadata, and lifecycle.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Channel Settings</h1>
+                    <p className="text-muted-foreground mt-2">
+                        Manage your channel&apos;s public profile, discovery metadata, and lifecycle.
+                    </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
+                        <IconVideoPlus className="h-4 w-4" />
+                        <span>Create</span>
+                    </Button>
+                    <SwitchChannelButton />
+                </div>
             </div>
 
             <Separator />

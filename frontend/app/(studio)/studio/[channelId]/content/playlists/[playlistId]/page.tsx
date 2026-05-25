@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc-client";
-import { useStudio } from "@/app/(app)/studio/[channelId]/_components/studio-provider";
+import { useStudio } from "@/app/(studio)/studio/[channelId]/_components/studio-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
