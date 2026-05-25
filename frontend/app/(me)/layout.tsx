@@ -5,7 +5,6 @@ import { TopBar } from "@/components/custom/top-bar";
 import { SearchForm } from "@/components/custom/search-form";
 import { NavigationDock } from "@/components/custom/navigation-dock";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
-import { IconUser, IconHistory, IconBell, IconSettings } from "@tabler/icons-react";
 
 export default async function MeLayout({
   children,
@@ -14,10 +13,10 @@ export default async function MeLayout({
 }) {
   const session = await requireOnboarded();
   const navItems = [
-        { icon: IconUser, title: "Profile", href: "/me" },
-        { icon: IconHistory, title: "Watch History", href: "/me/watch-history" },
-        { icon: IconBell, title: "Notifications", href: "/me/notifications" },
-        { icon: IconSettings, title: "Settings", href: "/me/settings" },
+        { icon: "profile", title: "Profile", href: "/me" },
+        { icon: "history", title: "Watch History", href: "/me/watch-history" },
+        { icon: "bell", title: "Notifications", href: "/me/notifications" },
+        { icon: "settings", title: "Settings", href: "/me/settings" },
     ];
 
   return (

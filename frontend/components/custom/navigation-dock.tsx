@@ -16,7 +16,10 @@ import {
     IconMessageCircle,
     IconUsers,
     IconSettings,
-    IconLogout
+    IconLogout,
+    IconUser,
+    IconHistory,
+    IconBell
 } from "@tabler/icons-react";
 
 const STUDIO_ICONS: Record<string, React.ElementType> = {
@@ -26,6 +29,9 @@ const STUDIO_ICONS: Record<string, React.ElementType> = {
     community: IconUsers,
     settings: IconSettings,
     exit: IconLogout,
+    profile: IconUser,
+    history: IconHistory,
+    bell: IconBell,
 };
 
 export interface NavItem {
