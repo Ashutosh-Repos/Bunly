@@ -245,14 +245,11 @@ function RecentCommentsWidget({ channelId }: { channelId: string }) {
 }
 
 import { SwitchChannelButton } from "./_components/switch-channel-button";
-import { Button } from "@/components/ui/button";
-import { useUpload } from "@/components/providers/upload-provider";
-import { IconVideoPlus } from "@tabler/icons-react";
+import UploadBtn from "./_components/upload/uploadBtn";
 
 /* ─── Page ─── */
 export default function StudioDashboardPage() {
     const { channel } = useStudio();
-    const { openModal } = useUpload();
 
     return (
         <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -264,13 +261,7 @@ export default function StudioDashboardPage() {
                         Welcome back, <span className="font-semibold text-foreground">{channel.name}</span>
                     </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
-                        <IconVideoPlus className="h-4 w-4" />
-                        <span>Create</span>
-                    </Button>
-                    <SwitchChannelButton />
-                </div>
+                
             </div>
 
             {/* Stats Row */}

@@ -5,6 +5,8 @@ import { StudioProvider, type Channel } from "./_components/studio-provider";
 import { UploadModal } from "./_components/upload/upload-modal";
 import { MinimizedUploadWidget } from "./_components/upload/minimized-upload-widget";
 import { NavigationDock } from "@/components/custom/navigation-dock";
+import UploadBtn from "./_components/upload/uploadBtn";
+import { SwitchChannelButton } from "./_components/switch-channel-button";
 
 export default async function StudioLayout(props: {
     children: React.ReactNode;
@@ -67,7 +69,12 @@ export default async function StudioLayout(props: {
                     className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6"
                 >
                     <div className="flex flex-col min-h-screen bg-background min-w-0">
+                        
                         <main className="flex-1">
+                            <div className="flex items-center gap-3 shrink-0">
+                    <UploadBtn/>
+                    <SwitchChannelButton />
+                </div>
                             {children}
                         </main>
                         <UploadModal />
