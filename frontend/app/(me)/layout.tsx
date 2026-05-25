@@ -1,14 +1,11 @@
 import { requireOnboarded } from "@/lib/auth-server";
 import { SessionProvider } from "@/components/providers/session-provider";
-import { HomeIcon } from "@/components/ui/home";
-import { FlameIcon } from "@/components/ui/flame";
-import { ClapIcon } from "@/components/ui/clap";
-import { UserIcon } from "@/components/ui/user";
 import { NotificationBell } from "@/components/notification-bell";
 import { TopBar } from "@/components/custom/top-bar";
 import { SearchForm } from "@/components/custom/search-form";
 import { NavigationDock } from "@/components/custom/navigation-dock";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
+import { IconUser, IconHistory, IconBell, IconSettings } from "@tabler/icons-react";
 
 export default async function MeLayout({
   children,
@@ -17,10 +14,10 @@ export default async function MeLayout({
 }) {
   const session = await requireOnboarded();
   const navItems = [
-        { icon: HomeIcon, title: "Home", href: "/" },
-        { icon: FlameIcon, title: "Trending", href: "/trending" },
-        { icon: ClapIcon, title: "Studio", href: "/studio" },
-        { icon: UserIcon, title: "Me", href: "/me" },
+        { icon: IconUser, title: "Profile", href: "/me" },
+        { icon: IconHistory, title: "Watch History", href: "/me/watch-history" },
+        { icon: IconBell, title: "Notifications", href: "/me/notifications" },
+        { icon: IconSettings, title: "Settings", href: "/me/settings" },
     ];
 
   return (
