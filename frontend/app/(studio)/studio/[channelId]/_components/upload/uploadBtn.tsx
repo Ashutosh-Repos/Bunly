@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from '@/components/ui/button'
 import { IconVideoPlus } from '@tabler/icons-react'
 import { useUpload } from "@/components/providers/upload-provider";
