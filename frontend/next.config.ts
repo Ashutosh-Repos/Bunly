@@ -24,10 +24,16 @@ const nextConfig: NextConfig = {
     // If an external API is specified, proxy all frontend /api requests to it.
     // This perfectly solves cross-domain Auth and Session SSR cookie passing.
     if (process.env.API_ORIGIN) {
+      let apiOrigin = process.env.API_ORIGIN;
+      if (!apiOrigin.startsWith("http://") && !apiOrigin.startsWith("https://")) {
+        // Fallback to http:// if no scheme is provided (e.g. Railway internal DNS)
+        apiOrigin = `http://${apiOrigin}`;
+      }
+      
       return [
         {
           source: "/api/:path*",
-          destination: `${process.env.API_ORIGIN}/api/:path*`,
+          destination: `${apiOrigin}/api/:path*`,
         },
       ];
     }
