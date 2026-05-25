@@ -1,9 +1,10 @@
 import { requireOnboarded } from "@/lib/auth-server";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { TopBar } from "@/components/custom/top-bar";
-import { SearchForm } from "@/components/custom/search-form";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import UploadBtn from "./studio/[channelId]/_components/upload/uploadBtn";
+import { SwitchChannelButton } from "./studio/[channelId]/_components/switch-channel-button";
 
 export default async function StudioRootLayout({
   children,
@@ -20,9 +21,11 @@ export default async function StudioRootLayout({
       >
         <TopBar>
           <div className="flex-1 flex justify-center max-w-xl mx-auto">
-            <SearchForm />
+            
           </div>
           <div className="flex items-center gap-3 shrink-0">
+            <UploadBtn/>
+            <SwitchChannelButton/>
             <NotificationBell />
             <ThemeToggle />
           </div>

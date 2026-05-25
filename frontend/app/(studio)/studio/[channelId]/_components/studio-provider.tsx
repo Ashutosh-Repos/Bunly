@@ -42,3 +42,7 @@ export function useStudio() {
     }
     return context;
 }
+
+export function useOptionalStudio() {
+    return useContext(StudioContext);
+}
