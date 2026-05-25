@@ -210,6 +210,7 @@ export function StudioPlaylistsTab({ channelId, search }: { channelId: string; s
                                                         src={getMediaUrl(playlist.firstVideoThumbnail)}
                                                         alt={playlist.title}
                                                         fill
+                                                        unoptimized
                                                         className="object-cover"
                                                         sizes="(max-width: 768px) 112px, 112px"
                                                     />

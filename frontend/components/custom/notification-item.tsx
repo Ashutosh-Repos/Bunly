@@ -31,27 +31,27 @@ const NOTIFICATION_TYPE_CONFIG: Record<
 > = {
     NEW_VIDEO: {
         icon: IconPlayerPlayFilled,
-        color: "text-primary shadow-[0_0_12px_oklch(var(--primary)/0.3)]",
+        color: "text-primary shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_30%,transparent)]",
     },
     LIVE_STARTED: {
         icon: IconPlayerPlayFilled,
-        color: "text-primary shadow-[0_0_12px_oklch(var(--primary)/0.3)]",
+        color: "text-primary shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_30%,transparent)]",
     },
     LIVE_SCHEDULED: {
         icon: IconBell,
-        color: "text-secondary shadow-[0_0_12px_oklch(var(--secondary)/0.3)]",
+        color: "text-secondary shadow-[0_0_12px_color-mix(in_srgb,var(--secondary)_30%,transparent)]",
     },
     VIDEO_LIKE: {
         icon: IconThumbUp,
-        color: "text-primary shadow-[0_0_12px_oklch(var(--primary)/0.3)]",
+        color: "text-primary shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_30%,transparent)]",
     },
     COMMENT_LIKE: {
         icon: IconThumbUp,
-        color: "text-primary shadow-[0_0_12px_oklch(var(--primary)/0.3)]",
+        color: "text-primary shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_30%,transparent)]",
     },
     NEW_SUBSCRIBER: {
         icon: IconUserPlus,
-        color: "text-primary shadow-[0_0_12px_oklch(var(--primary)/0.3)]",
+        color: "text-primary shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_30%,transparent)]",
     },
     COMMENT: {
         icon: IconMessageCircle,
@@ -124,7 +124,7 @@ export const NotificationItem = memo(function NotificationItem({
         >
             {/* Unread Indicator Bar */}
             {!notification.isRead && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1/2 w-1 bg-primary rounded-r-full shadow-[0_0_8px_oklch(var(--primary)/0.6)]" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1/2 w-1 bg-primary rounded-r-full shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_60%,transparent)]" />
             )}
 
             {/* Avatar: Actor Photo OR Type Icon */}

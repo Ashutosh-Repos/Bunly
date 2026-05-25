@@ -88,6 +88,7 @@ export function VideoHoverPreview({
                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovered && spriteUrl ? "opacity-0" : "opacity-100"}`}
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     priority={priority}
+                    unoptimized
                     onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                     }}

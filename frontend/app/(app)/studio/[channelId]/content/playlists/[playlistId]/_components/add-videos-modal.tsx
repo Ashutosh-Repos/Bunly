@@ -154,6 +154,7 @@ export function AddVideosModal({ playlistId, channelId }: AddVideosModalProps) {
                                                             src={getMediaUrl(video.thumbnailUrl)}
                                                             alt={video.title}
                                                             fill
+                                                            unoptimized
                                                             className="object-cover"
                                                             sizes="128px"
                                                         />

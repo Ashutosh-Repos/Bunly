@@ -23,27 +23,32 @@ export default async function AppLayout({
         { icon: UserIcon, title: "Me", href: "/me" },
     ];
 
-  return <SessionProvider initialSession={session}>
-    <main
-            id="home-layout-wrapper"
-            className="w-full h-screen flex flex-col overflow-hidden px-2 sm:px-1"
-        >
-            <TopBar>
-                <SearchForm />
-                <div className="flex items-center gap-2">
-                    <NotificationBell />
-                    <ThemeToggle />
-                </div>
-            </TopBar>
-            <div className="w-full h-full flex flex-col-reverse sm:flex-row items-center justify-center overflow-hidden">
-                <NavigationDock navLinks={navItems} />
-                <div
-                    id="main-scroll-container"
-                    className="w-full h-full overflow-y-auto p-2 sm:p-1"
-                >
-                    {children}
-                </div>
-            </div>
-        </main>
-  </SessionProvider>;
+  return (
+    <SessionProvider initialSession={session}>
+      <main
+        id="home-layout-wrapper"
+        className="w-full h-screen flex flex-col overflow-hidden bg-background"
+      >
+        <TopBar>
+          <div className="flex-1 flex justify-center max-w-xl mx-auto">
+            <SearchForm />
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
+        </TopBar>
+        
+        <div className="w-full flex-1 flex flex-col-reverse sm:flex-row items-stretch overflow-hidden">
+          <NavigationDock navLinks={navItems} />
+          <div
+            id="main-scroll-container"
+            className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6"
+          >
+            {children}
+          </div>
+        </div>
+      </main>
+    </SessionProvider>
+  );
 }

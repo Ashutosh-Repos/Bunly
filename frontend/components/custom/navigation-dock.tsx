@@ -21,7 +21,7 @@ export const NavigationDock = ({ navLinks }: { navLinks: NavItem[] }) => {
     const pathname = usePathname();
 
     return (
-        <aside className="sm:w-20 sm:h-full w-full h-16 bg-surface-1/60 backdrop-blur-2xl flex flex-col items-center justify-center sm:p-2 gap-4 sm:py-8 border-r border-border/10">
+        <aside className="sm:w-20 sm:h-full w-full h-16 bg-background/95 backdrop-blur-md flex flex-col items-center justify-center sm:p-2 gap-4 sm:py-8 border-t sm:border-t-0 sm:border-r border-border sticky bottom-0 sm:top-16 z-40">
             {/* main nav */}
             <nav className="w-full h-max flex items-center justify-evenly sm:flex-col gap-3">
                 {navLinks.map((item: NavItem, idx: number) => {
@@ -43,7 +43,7 @@ export const NavigationDock = ({ navLinks }: { navLinks: NavItem[] }) => {
                                 >
                                     <Icon />
                                     {isActive && (
-                                        <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full sm:block hidden shadow-[0_0_10px_oklch(var(--primary))]" />
+                                        <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full sm:block hidden shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_50%,transparent)]" />
                                     )}
                                 </Link>
                             </TooltipTrigger>

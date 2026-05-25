@@ -261,6 +261,7 @@ export default function StudioCommentsPage() {
                                                 src={getMediaUrl(comment.videos.thumbnailUrl)}
                                                 alt={comment.videos.title}
                                                 fill
+                                                unoptimized
                                                 className="object-cover"
                                             />
                                         ) : (

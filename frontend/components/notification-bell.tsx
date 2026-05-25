@@ -224,7 +224,6 @@ export function NotificationBell() {
         toast.success("Notifications turned off for this channel");
     };
 
-    // Badge display: cap at 99+
     const badgeText = unreadCount > 99 ? "99+" : `${unreadCount}`;
 
     return (
@@ -240,7 +239,7 @@ export function NotificationBell() {
                     {unreadCount > 0 && (
                         <span
                             className={cn(
-                                "absolute -top-0.5 -right-0.5 rounded-full bg-primary ring-2 ring-background text-[10px] font-black text-primary-foreground flex items-center justify-center animate-in zoom-in duration-300 shadow-[0_0_10px_oklch(var(--primary)/0.4)]",
+                                "absolute -top-0.5 -right-0.5 rounded-full bg-primary ring-2 ring-background text-[10px] font-black text-primary-foreground flex items-center justify-center animate-in zoom-in duration-300 shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_40%,transparent)]",
                                 unreadCount > 99 ? "h-5 min-w-5 px-1.5" : "h-4 w-4",
                             )}
                         >

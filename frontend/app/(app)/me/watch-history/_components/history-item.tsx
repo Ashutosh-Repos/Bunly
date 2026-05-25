@@ -60,6 +60,7 @@ export const HistoryItem = memo(function HistoryItem({
                         src={getMediaUrl(video.thumbnailUrl)}
                         alt={video.title}
                         fill
+                        unoptimized
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 240px, 280px"
                         onError={(e) => {

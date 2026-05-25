@@ -250,6 +250,7 @@ export default function StudioCommunityPage() {
                                         alt="Preview"
                                         width={400}
                                         height={300}
+                                        unoptimized
                                         className="rounded-lg object-cover max-h-64 w-auto"
                                     />
                                     <Button
@@ -383,6 +384,7 @@ export default function StudioCommunityPage() {
                                                         alt={`Post image ${i + 1}`}
                                                         width={300}
                                                         height={200}
+                                                        unoptimized
                                                         className="rounded-lg object-cover max-h-48"
                                                     />
                                                 ))}

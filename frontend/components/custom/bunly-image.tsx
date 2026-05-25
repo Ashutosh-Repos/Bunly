@@ -79,8 +79,8 @@ export function BunlyImage({
                 src={resolvedUrl}
                 alt={alt || "Media content"}
                 fill={fill}
-                width={width}
-                height={height}
+                width={fill ? undefined : width}
+                height={fill ? undefined : height}
                 priority={priority}
                 className={cn(
                     "transition-opacity duration-500",
@@ -93,6 +93,7 @@ export function BunlyImage({
                     setHasError(true);
                     setIsLoading(false);
                 }}
+                unoptimized
                 {...props}
             />
         </div>

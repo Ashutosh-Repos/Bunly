@@ -28,7 +28,7 @@ export default function StudioError({
             </p>
             <Button 
                 onClick={() => reset()}
-                className="mt-4 bg-primary text-black font-black uppercase tracking-widest text-[10px] h-10 px-8 rounded-xl shadow-[0_0_15px_-3px_oklch(var(--primary)/0.4)]"
+                className="mt-4 bg-primary text-black font-black uppercase tracking-widest text-[10px] h-10 px-8 rounded-xl shadow-[0_0_15px_-3px_color-mix(in_srgb,var(--primary)_40%,transparent)]"
             >
                 Try Again
             </Button>

@@ -104,7 +104,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                         <IconPhotoEdit className="w-4 h-4 text-muted-foreground" />
                         Channel Banner
                     </h4>
-                    <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border">
+                    <div className="w-full max-w-2xl aspect-video md:aspect-3/1 h-40 md:h-52 overflow-hidden rounded-xl border border-border relative">
                         <ImageUpload
                             value={banner}
                             onChange={(url: string) => handleBannerUpdate(url)}
@@ -112,6 +112,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                             variant="overlay"
                             type="banner"
                             priority={true}
+                            className="w-full h-full"
                         />
                     </div>
                     <p className="text-xs text-muted-foreground w-full max-w-2xl">
@@ -125,7 +126,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                         <IconCamera className="w-4 h-4 text-muted-foreground" />
                         Profile Picture
                     </h4>
-                    <div className="w-40 h-40 overflow-hidden rounded-full border border-border">
+                    <div className="w-40 h-40 overflow-hidden rounded-full border border-border relative">
                         <ImageUpload
                             value={avatar}
                             onChange={(url: string) => handleAvatarUpdate(url)}
@@ -133,6 +134,7 @@ export function MediaSettings({ initialData }: MediaSettingsProps) {
                             variant="overlay"
                             type="avatar"
                             priority={true}
+                            className="w-full h-full"
                         />
                     </div>
                     <p className="text-xs text-muted-foreground max-w-sm">

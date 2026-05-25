@@ -37,7 +37,7 @@ export default function StudioChannelError({
                 </Button>
                 <Button 
                     asChild
-                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl shadow-[0_0_15px_-3px_oklch(var(--primary)/0.4)]"
+                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase tracking-widest text-[10px] h-10 px-6 rounded-xl shadow-[0_0_15px_-3px_color-mix(in_srgb,var(--primary)_40%,transparent)]"
                 >
                     <Link href="/studio">
                         Return to Hub

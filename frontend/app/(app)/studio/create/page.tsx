@@ -537,7 +537,7 @@ export default function CreateChannelPage() {
                                         handleStatus === "checking" ||
                                         handleStatus === "taken"
                                     }
-                                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[11px] tracking-widest rounded-2xl transition-all h-14 px-12 shadow-[0_0_30px_-5px_oklch(var(--primary)/0.3)] w-full sm:w-auto ml-auto"
+                                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[11px] tracking-widest rounded-2xl transition-all h-14 px-12 shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--primary)_30%,transparent)] w-full sm:w-auto ml-auto"
                                 >
                                     Next Step
                                 </Button>
@@ -549,7 +549,7 @@ export default function CreateChannelPage() {
                                         handleStatus === "taken" ||
                                         handleStatus === "checking"
                                     }
-                                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[11px] tracking-widest rounded-2xl transition-all h-14 px-12 shadow-[0_0_30px_-5px_oklch(var(--primary)/0.4)] hover:shadow-[0_0_40px_-5px_oklch(var(--primary)/0.5)] w-full sm:w-auto ml-auto"
+                                    className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[11px] tracking-widest rounded-2xl transition-all h-14 px-12 shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--primary)_40%,transparent)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--primary)_50%,transparent)] w-full sm:w-auto ml-auto"
                                 >
                                     {isPending ? (
                                         <IconLoader2 className="mr-3 h-5 w-5 animate-spin" />

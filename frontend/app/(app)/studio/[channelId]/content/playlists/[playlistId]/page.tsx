@@ -315,6 +315,7 @@ export default function PlaylistManagerPage() {
                                                 src={getMediaUrl(video.thumbnailUrl)}
                                                 alt={video.title}
                                                 fill
+                                                unoptimized
                                                 className="object-cover"
                                                 sizes="112px"
                                             />

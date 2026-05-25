@@ -35,7 +35,7 @@ export function ChannelSelectionClient({ channels }: { channels: Channel[] }) {
             <Link href="/studio/create">
                 <Card className="hover:border-primary/50 transition-colors cursor-pointer group h-full border-dashed bg-muted/20 hover:bg-muted/40 shadow-none border-border/20 min-h-[140px]">
                     <CardContent className="flex flex-col items-center justify-center h-full text-muted-foreground/60 group-hover:text-primary transition-colors gap-4 pt-6">
-                        <div className="p-4 rounded-full bg-background border border-border/10 shadow-sm group-hover:shadow-[0_0_15px_-3px_oklch(var(--primary)/0.3)] transition-all">
+                        <div className="p-4 rounded-full bg-background border border-border/10 shadow-sm group-hover:shadow-[0_0_15px_-3px_color-mix(in_srgb,var(--primary)_30%,transparent)] transition-all">
                             <IconPlus className="w-6 h-6" />
                         </div>
                         <span className="text-[11px] font-black uppercase tracking-widest">Create Channel</span>

@@ -690,7 +690,7 @@ async function handleNewVideoStreamBatch(
             // via the `jobId` parameter. Doing a `redis.set NX` here would swallow
             // retries in the event of a worker crash between Redis success and BullMQ enqueue.
             await newVideoFanoutQueue.add(JOBS.FANOUT_NEW_VIDEO, data, {
-                jobId: `fanout:${videoId}`, 
+                jobId: `fanout-${videoId}`, 
             });
         } catch (err) {
             console.warn("[NewVideoWorker] Bad message:", id, err);
