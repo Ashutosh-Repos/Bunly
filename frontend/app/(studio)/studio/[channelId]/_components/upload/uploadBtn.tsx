@@ -8,9 +8,9 @@ import { useUpload } from "@/components/providers/upload-provider";
 const UploadBtn = () => {
     const { openModal } = useUpload();
   return (
-    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background">
+    <Button onClick={() => openModal()} variant="outline" className="gap-2 bg-background" size="sm">
         <IconVideoPlus className="h-4 w-4" />
-        <span>Create</span>
+        <span className="hidden sm:inline">Create</span>
     </Button>
   )
 }

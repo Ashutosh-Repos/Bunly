@@ -23,7 +23,7 @@ export function SwitchChannelButton() {
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px] rounded-xl border-border/20 bg-surface-1">
                     <IconArrowsExchange className="w-4 h-4 text-primary" />
-                    Switch Channel
+                    <span className="hidden sm:inline">Switch Channel</span>
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[300px] rounded-xl">

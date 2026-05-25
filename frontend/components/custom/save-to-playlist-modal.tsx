@@ -138,7 +138,7 @@ export function SaveToPlaylistModal({
                                     key={pl.id} 
                                     onClick={() => togglePlaylist(pl.id, pl.containsVideo)}
                                     disabled={addMutation.isPending || removeMutation.isPending}
-                                    className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-3 p-2.5 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <div 
                                         className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
@@ -163,7 +163,7 @@ export function SaveToPlaylistModal({
                     </ScrollArea>
                 )}
 
-                <div className="pt-2 border-t">
+                <div className="pt-2 border-t border-border/60">
                     {!showCreate ? (
                         <button 
                             onClick={() => setShowCreate(true)}

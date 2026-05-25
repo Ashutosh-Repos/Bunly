@@ -35,10 +35,10 @@ export default function SettingsPage() {
     const channelData = data.channel;
 
     return (
-        <div className="max-w-4xl mx-auto py-8 px-4 lg:px-8 space-y-8">
+        <div className="max-w-4xl mx-auto py-6 sm:py-8 px-3 sm:px-4 lg:px-8 space-y-6 sm:space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Channel Settings</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">Channel Settings</h1>
                     <p className="text-muted-foreground mt-2">
                         Manage your channel&apos;s public profile, discovery metadata, and lifecycle.
                     </p>

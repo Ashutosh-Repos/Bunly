@@ -35,7 +35,7 @@ export function DetailsStep() {
     return (
         <div className="space-y-8 animate-in fade-in duration-300">
             <div>
-                <h3 className="text-2xl font-bold mb-1">Details</h3>
+                <h3 className="text-xl font-semibold mb-1">Details</h3>
                 <p className="text-sm text-muted-foreground mb-6">Add details that describe your video.</p>
             </div>
 
@@ -75,8 +75,8 @@ export function DetailsStep() {
             <div>
                 <h4 className="text-sm font-semibold mb-2">Thumbnail</h4>
                 <p className="text-sm text-muted-foreground mb-4">Select or upload a picture that shows what&apos;s in your video. A good thumbnail stands out and draws viewers&apos; attention.</p>
-                <div className="flex gap-4 flex-wrap">
-                    <label htmlFor="thumbnail-upload" className="border border-dashed aspect-video w-40 flex flex-col gap-2 items-center justify-center rounded bg-muted/50 cursor-pointer hover:bg-muted duration-200">
+                <div className="flex gap-3 flex-wrap">
+                    <label htmlFor="thumbnail-upload" className="border border-dashed border-border/60 aspect-video w-36 flex flex-col gap-1.5 items-center justify-center rounded-xl bg-muted/30 cursor-pointer hover:bg-muted hover:border-muted-foreground/40 transition-all duration-200">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-image-plus text-muted-foreground"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                         <span className="text-xs font-medium text-muted-foreground">Upload File</span>
                         <input id="thumbnail-upload" type="file" accept="image/*" className="hidden" onChange={async (e) => {
@@ -111,7 +111,7 @@ export function DetailsStep() {
                     {/* Custom uploaded thumbnail preview */}
                     {(customThumbnailUrl || (currentThumbnail && !generatedOptions.includes(currentThumbnail))) && (
                         <div 
-                            className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ring-2 ring-primary border-primary`}
+                            className={`relative border aspect-video w-36 flex items-center justify-center rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ring-2 ring-primary border-primary`}
                         >
                             <BunlyImage 
                                 src={customThumbnailUrl || currentThumbnail} 
@@ -131,7 +131,7 @@ export function DetailsStep() {
                             <div 
                                 key={i} 
                                 onClick={() => setValue("thumbnailUrl", key)}
-                                className={`relative border aspect-video w-40 flex items-center justify-center rounded overflow-hidden cursor-pointer duration-200 ${currentThumbnail === key ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'}`}
+                                className={`relative border aspect-video w-36 flex items-center justify-center rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${currentThumbnail === key ? 'ring-2 ring-primary border-primary' : 'border-border/60 hover:border-muted-foreground/40'}`}
                             >
                                 <BunlyImage 
                                     src={key} 
@@ -150,7 +150,7 @@ export function DetailsStep() {
                     ) : isProcessing ? (
                         /* Static placeholders for generated thumbnails while processing */
                         [1, 2, 3].map(i => (
-                            <div key={i} className="border aspect-video w-40 flex items-center justify-center rounded bg-secondary/10 animate-pulse">
+                            <div key={i} className="border border-border/40 aspect-video w-36 flex items-center justify-center rounded-xl bg-muted/20 animate-pulse">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-image text-muted-foreground/30"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                             </div>
                         ))
@@ -252,10 +252,10 @@ export function DetailsStep() {
                             )}
                         />
 
-                        <Button variant="ghost" className="w-full text-foreground/70" onClick={() => setShowMore(false)}>SHOW LESS</Button>
+                        <Button variant="ghost" className="w-full text-muted-foreground hover:text-foreground text-xs" onClick={() => setShowMore(false)}>Show Less</Button>
                     </div>
                 ) : (
-                    <Button variant="secondary" className="w-full" onClick={() => setShowMore(true)}>SHOW MORE</Button>
+                    <Button variant="ghost" className="w-full text-muted-foreground hover:text-foreground text-xs" onClick={() => setShowMore(true)}>Show More Options</Button>
                 )}
             </div>
         </div>

@@ -29,7 +29,7 @@ export default async function MeLayout({
           <div className="flex-1 flex justify-center max-w-xl mx-auto">
             <SearchForm />
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <NotificationBell />
             <ThemeToggle />
           </div>

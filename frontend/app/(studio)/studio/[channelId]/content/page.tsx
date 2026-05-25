@@ -86,44 +86,44 @@ export default function StudioContentPage() {
     const videos = data?.pages.flatMap(p => p.items) || [];
 
     return (
-        <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-7xl mx-auto">
+        <div className="flex flex-col h-full bg-background p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Channel content</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Channel content</h1>
             </div>
 
-            <div className="flex items-center gap-4 mb-6">
-                <div className="relative flex-1 max-w-sm">
-                    <IconFilter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-4 mb-5">
+                <div className="relative flex-1 max-w-xs">
+                    <IconFilter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input 
                         placeholder="Filter videos..." 
-                        className="pl-9 bg-muted/50"
+                        className="pl-8 h-9 bg-muted/30 border-border/60 text-sm"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
             </div>
 
-            <div className="flex gap-6 border-b border-border/40 mb-6 font-medium text-sm">
+            <div className="flex gap-6 border-b border-border/40 mb-5 font-medium text-sm">
                 <button 
                     onClick={() => setActiveTab("videos")}
-                    className={`pb-3 relative transition-colors ${activeTab === "videos" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`pb-2.5 relative transition-colors text-sm ${activeTab === "videos" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                     Videos
-                    {activeTab === "videos" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-sm" />}
+                    {activeTab === "videos" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-foreground rounded-t-sm" />}
                 </button>
                 <button 
                     onClick={() => setActiveTab("playlists")}
-                    className={`pb-3 relative transition-colors ${activeTab === "playlists" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`pb-2.5 relative transition-colors text-sm ${activeTab === "playlists" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                     Playlists
-                    {activeTab === "playlists" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-sm" />}
+                    {activeTab === "playlists" && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-foreground rounded-t-sm" />}
                 </button>
             </div>
 
             {activeTab === "videos" && (
-                <div className="border rounded-lg overflow-hidden bg-card">
+                <div className="border border-border/60 rounded-xl overflow-hidden bg-card">
                 <Table>
-                    <TableHeader className="bg-muted/50">
+                    <TableHeader className="bg-muted/30">
                         <TableRow>
                             <TableHead className="w-[400px]">Video</TableHead>
                             <TableHead>Visibility</TableHead>

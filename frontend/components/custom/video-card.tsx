@@ -16,10 +16,10 @@ export function VideoCard({ video, index, priority = false }: VideoCardProps) {
     const displayDate = video.publishedAt ?? video.createdAt;
     
     return (
-        <div className="flex flex-col gap-3 group cursor-pointer transition-transform duration-200 hover:scale-[1.02]">
+        <div className="flex flex-col gap-3 group cursor-pointer">
             <Link 
                 href={`/watch/${video.id}`} 
-                className="relative w-full aspect-video bg-muted/20 rounded-xl overflow-hidden ring-1 ring-border/10 group-hover:ring-primary/30 group-hover:shadow-lg group-hover:shadow-primary/5 transition-all"
+                className="relative w-full aspect-video bg-muted/20 rounded-xl overflow-hidden ring-1 ring-border/10 group-hover:ring-foreground/15 group-hover:shadow-md transition-all duration-300"
             >
                 <VideoHoverPreview
                     thumbnailUrl={video.thumbnailUrl}
@@ -33,7 +33,7 @@ export function VideoCard({ video, index, priority = false }: VideoCardProps) {
                         </div>
                     )}
                     {(video.duration ?? 0) > 0 && (
-                        <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[11px] font-semibold px-1.5 py-0.5 rounded shadow-sm z-10">
+                        <span className="absolute bottom-1.5 right-1.5 bg-black/75 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-md z-10">
                             {formatDuration(video.duration)}
                         </span>
                     )}

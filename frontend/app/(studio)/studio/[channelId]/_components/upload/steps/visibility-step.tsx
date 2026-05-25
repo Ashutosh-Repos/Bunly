@@ -11,11 +11,11 @@ export function VisibilityStep() {
     return (
         <div className="space-y-8 animate-in fade-in duration-300">
             <div>
-                <h3 className="text-2xl font-bold mb-1">Visibility</h3>
+                <h3 className="text-xl font-semibold mb-1">Visibility</h3>
                 <p className="text-sm text-muted-foreground mb-6">Choose who can see your video, or schedule it for publishing later.</p>
             </div>
 
-            <div className="border rounded-lg p-6 bg-card text-card-foreground">
+            <div className="border border-border/60 rounded-xl p-5 bg-card text-card-foreground">
                 <h4 className="font-semibold text-base mb-4">Save or publish</h4>
                 <p className="text-sm text-muted-foreground mb-6">Make your video public, unlisted, or private</p>
 
@@ -30,7 +30,7 @@ export function VisibilityStep() {
                                     value={field.value}
                                     className="flex flex-col space-y-2 ml-4"
                                 >
-                                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                                         <FormControl>
                                             <RadioGroupItem value="PRIVATE" />
                                         </FormControl>
@@ -40,7 +40,7 @@ export function VisibilityStep() {
                                         </div>
                                     </FormItem>
 
-                                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                                         <FormControl>
                                             <RadioGroupItem value="UNLISTED" />
                                         </FormControl>
@@ -50,7 +50,7 @@ export function VisibilityStep() {
                                         </div>
                                     </FormItem>
 
-                                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                                         <FormControl>
                                             <RadioGroupItem value="PUBLIC" />
                                         </FormControl>
@@ -62,7 +62,7 @@ export function VisibilityStep() {
 
                                     <div className="h-px bg-border my-2 block" />
 
-                                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                    <FormItem className="flex items-center space-x-3 space-y-0 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
                                         <FormControl>
                                             <RadioGroupItem value="SCHEDULED" />
                                         </FormControl>
@@ -80,7 +80,7 @@ export function VisibilityStep() {
 
                 {/* Conditional render for schedule date picker */}
                 {visibility === "SCHEDULED" && (
-                    <div className="mt-6 ml-12 p-4 border rounded-md bg-muted/20 animate-in fade-in zoom-in-95">
+                    <div className="mt-6 ml-10 p-4 border border-border/60 rounded-xl bg-muted/20 animate-in fade-in zoom-in-95">
                         <FormField
                             control={control}
                             name="scheduledAt"
@@ -111,7 +111,7 @@ export function VisibilityStep() {
                 )}
             </div>
             
-            <div className="p-4 bg-muted/50 rounded-lg border mt-8">
+            <div className="p-4 bg-muted/30 rounded-xl border border-border/60 mt-8">
                 <h5 className="font-semibold text-sm mb-2">Before you publish, check the following:</h5>
                 <p className="text-xs text-muted-foreground">Do kids appear in this video? Make sure to follow our policies to protect minors from harm, exploitation, bullying, and violations of labor law.</p>
             </div>

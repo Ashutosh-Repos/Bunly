@@ -77,10 +77,10 @@ export default function StudioCommentsPage() {
     const comments = data?.pages.flatMap((p) => p.items) || [];
 
     return (
-        <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col h-full bg-background p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Channel Comments</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight mb-1">Channel Comments</h1>
                     <p className="text-muted-foreground">
                         Review and engage with comments across all your videos.
                     </p>

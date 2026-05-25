@@ -33,18 +33,18 @@ function StatCard({
     accent?: string;
 }) {
     return (
-        <Card className="relative overflow-hidden">
-            <CardContent className="p-5 flex items-center gap-4">
+        <Card className="relative overflow-hidden border-border/60 rounded-xl transition-all duration-200 hover:border-foreground/15">
+            <CardContent className="p-4 flex items-center gap-4">
                 <div
-                    className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${accent ?? "bg-primary/10 text-primary"}`}
+                    className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${accent ?? "bg-primary/10 text-primary"}`}
                 >
-                    <Icon size={22} />
+                    <Icon size={20} />
                 </div>
                 <div>
-                    <p className="text-2xl font-black tracking-tight leading-none">
+                    <p className="text-xl font-bold tracking-tight leading-none">
                         {typeof value === "number" ? value.toLocaleString() : value}
                     </p>
-                    <p className="text-xs font-medium text-muted-foreground mt-1 uppercase tracking-wider">
+                    <p className="text-[10px] font-medium text-muted-foreground mt-1 uppercase tracking-wider">
                         {label}
                     </p>
                 </div>
@@ -250,11 +250,11 @@ export default function StudioDashboardPage() {
     const { channel } = useStudio();
 
     return (
-        <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto w-full">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="space-y-1">
-                    <h1 className="text-3xl font-bold tracking-tight">Channel Dashboard</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">Channel Dashboard</h1>
                     <p className="text-sm text-muted-foreground">
                         Welcome back, <span className="font-semibold text-foreground">{channel.name}</span>
                     </p>

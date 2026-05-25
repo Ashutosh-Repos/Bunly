@@ -182,12 +182,12 @@ export default function MePage() {
 
         {/* Avatar */}
         <div className="absolute top-32 left-4 md:top-44 md:left-8">
-          <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-card bg-muted shadow-xl relative z-10 hover:ring-2 ring-primary/40 transition-all">
+          <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-card bg-muted shadow-xl relative z-10">
             <ImageUpload
               type="avatar"
               value={avatarUrl}
               onChange={(key) => handleImageUpdate("image", key)}
-              className="w-full h-full"
+              className="w-full h-full relative"
               variant="overlay"
             />
           </div>

@@ -138,6 +138,14 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
         const isStepValid = await methods.trigger(fieldsToValidate);
         if (!isStepValid) return;
 
+        // Block transition past Details until processing is complete
+        // (duration isn't known until READY, so chapters/visibility steps can't work correctly)
+        if (activeStepIndex === 0 && videoData?.processingStatus !== "READY") {
+            toast.info("Video is still processing. You can edit details now but chapters and visibility will be available once processing completes.");
+            saveCurrentStep();
+            return;
+        }
+
         // C5c fix: auto-save on Next navigation
         saveCurrentStep();
 
@@ -203,27 +211,27 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
             <div className="flex flex-col h-full bg-background relative">
                 
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b">
-                    <h2 className="text-xl font-bold truncate mr-4">{videoData?.title || methods.getValues("title") || "Untitled video"}</h2>
-                    <Button variant="ghost" size="icon" onClick={() => {
+                <div className="flex items-center justify-between px-6 py-3 border-b border-border/60 shrink-0">
+                    <h2 className="text-base font-semibold truncate mr-4 text-foreground">{videoData?.title || methods.getValues("title") || "Untitled video"}</h2>
+                    <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground shrink-0" onClick={() => {
                         if (standalone) {
                             router.push("../");
                         } else {
                             closeModal();
                         }
                     }}>
-                        <IconX />
+                        <IconX className="h-4 w-4" />
                     </Button>
                 </div>
 
                 {/* C5b: Watch Video CTA banner — shown once processing is READY */}
                 {isProcessingReady && videoId && (
-                    <div className="flex items-center justify-between bg-green-500/10 border-b border-green-500/20 px-4 py-2">
-                        <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-medium">
+                    <div className="flex items-center justify-between bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2.5 shrink-0">
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
                             <IconCheck size={16} />
                             Processing complete — your video is live!
                         </div>
-                        <Button variant="ghost" size="sm" asChild className="text-green-600 dark:text-green-400 hover:text-green-700 gap-1">
+                        <Button variant="ghost" size="sm" asChild className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 gap-1.5">
                             <Link href={`/watch/${videoId}`} target="_blank">
                                 Watch Video <IconExternalLink size={14} />
                             </Link>
@@ -233,48 +241,63 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
 
                 {/* Processing warning banner (still churning) */}
                 {isStillProcessing && (
-                    <div className="flex items-center gap-2 bg-blue-500/10 border-b border-blue-500/20 px-4 py-2">
+                    <div className="flex items-center gap-2 bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 shrink-0">
                         <IconLoader2 size={14} className="text-blue-500 animate-spin" />
                         <span className="text-sm text-blue-600 dark:text-blue-400">Your video is still processing. It will become available once complete.</span>
                     </div>
                 )}
 
-                {/* Premium Stepper Navigation */}
-                <div className="flex justify-center border-b p-6 bg-muted/10 relative overflow-hidden z-10 shrink-0">
-                    <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-                    <nav className="flex items-center justify-between w-full max-w-2xl relative">
+                {/* Stepper Navigation */}
+                <div className="flex justify-center border-b border-border/60 px-6 py-5 bg-muted/30 shrink-0">
+                    <nav className="flex items-center w-full max-w-xl">
                         {STEPS.map((stepName, i) => (
-                            <div key={stepName} className="flex-1 flex flex-col items-center relative group">
+                            <div key={stepName} className="flex-1 flex items-center">
+                                <div className="flex flex-col items-center relative w-full">
+                                    <div className={`flex items-center justify-center transition-all duration-300 ${
+                                        i === activeStepIndex 
+                                            ? "text-foreground" 
+                                            : i < activeStepIndex 
+                                                ? "text-foreground" 
+                                                : "text-muted-foreground/50"
+                                    }`}>
+                                        <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-2 transition-all duration-300 ${
+                                            i === activeStepIndex 
+                                                ? "bg-foreground text-background" 
+                                                : i < activeStepIndex 
+                                                    ? "bg-emerald-500 text-white" 
+                                                    : "bg-muted text-muted-foreground"
+                                        }`}>
+                                            {i < activeStepIndex ? <IconCheck size={14} stroke={3} /> : <span className="text-xs font-bold">{i + 1}</span>}
+                                        </div>
+                                        <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                                            i === activeStepIndex ? "text-foreground" : "text-muted-foreground"
+                                        }`}>{stepName}</span>
+                                    </div>
+                                </div>
                                 {/* Connecting Line */}
                                 {i !== STEPS.length - 1 && (
-                                    <div className={`absolute top-4 left-[50%] w-full h-[2px] -z-10 transition-colors duration-500 ${i < activeStepIndex ? 'bg-green-500' : 'bg-muted-foreground/20'}`} />
+                                    <div className={`h-[2px] flex-1 mx-2 rounded-full transition-colors duration-500 ${
+                                        i < activeStepIndex ? "bg-emerald-500" : "bg-border"
+                                    }`} />
                                 )}
-                                <div className={`flex flex-col items-center justify-center transition-all duration-300 ${i === activeStepIndex ? "text-primary scale-110" : i < activeStepIndex ? "text-foreground" : "text-muted-foreground opacity-70"}`}>
-                                    <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-3 bg-background border-2 transition-all duration-500 ${
-                                        i === activeStepIndex ? "border-primary text-primary shadow-[0_0_15px_rgba(var(--primary)/25%)]" : i < activeStepIndex ? "border-green-500 bg-green-500 text-primary-foreground" : "border-muted-foreground/30 text-muted-foreground"
-                                    }`}>
-                                        {i < activeStepIndex ? <IconCheck size={16} stroke={3} /> : <span className="text-sm font-bold">{i + 1}</span>}
-                                    </div>
-                                    <span className={`text-xs font-bold uppercase tracking-wider ${i === activeStepIndex ? "bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80 animate-in fade-in" : ""}`}>{stepName}</span>
-                                </div>
                             </div>
                         ))}
                     </nav>
                 </div>
 
                 {/* Main Form Content */}
-                <div className="flex-1 overflow-y-auto p-6 md:px-12">
+                <div className="flex-1 overflow-y-auto p-6 md:px-10">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-full">
                             <IconLoader2 className="animate-spin text-muted-foreground" />
                         </div>
                     ) : (
-                        <div className="max-w-3xl mx-auto w-full">
+                        <div className="max-w-2xl mx-auto w-full">
                             <div className={activeStepIndex === 0 ? "block" : "hidden"}>
                                 <DetailsStep />
                             </div>
                             <div className={activeStepIndex === 1 ? "block" : "hidden"}>
-                                <ElementsStep />
+                                <ElementsStep videoDuration={videoData?.duration ?? null} />
                             </div>
                             <div className={activeStepIndex === 2 ? "block" : "hidden"}>
                                 <VisibilityStep />
@@ -284,35 +307,35 @@ export function UploadEditor({ idOverride, standalone = false }: UploadEditorPro
                 </div>
 
                 {/* Sticky Editor Actions Bar */}
-                <div className="p-4 border-t flex justify-between bg-card shrink-0">
-                    <Button variant="outline" onClick={handleBack} disabled={activeStepIndex === 0 || updateMutation.isPending}>
-                        <IconChevronLeft className="mr-2" size={16} /> Back
+                <div className="px-6 py-3 border-t border-border/60 flex justify-between items-center bg-background shrink-0">
+                    <Button variant="ghost" size="sm" onClick={handleBack} disabled={activeStepIndex === 0 || updateMutation.isPending} className="gap-1.5 text-muted-foreground hover:text-foreground">
+                        <IconChevronLeft size={16} /> Back
                     </Button>
 
                     <div className="flex items-center gap-3">
                         {/* Save indicator */}
                         {saveIndicator === "saving" && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <IconLoader2 size={12} className="animate-spin" /> Saving...
+                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <IconLoader2 size={12} className="animate-spin" /> Saving…
                             </span>
                         )}
                         {saveIndicator === "saved" && (
-                            <span className="text-xs text-green-500 flex items-center gap-1">
+                            <span className="text-xs text-emerald-500 flex items-center gap-1.5">
                                 <IconCheck size={12} /> Saved
                             </span>
                         )}
 
                         {activeStepIndex < STEPS.length - 1 ? (
-                            <Button onClick={handleNext} disabled={updateMutation.isPending}>
-                                Next <IconChevronRight className="ml-2" size={16} />
+                            <Button size="sm" onClick={handleNext} disabled={updateMutation.isPending} className="gap-1.5">
+                                Next <IconChevronRight size={16} />
                             </Button>
                         ) : (
                             // C5: Context-aware button label
                             <Button 
+                                size="sm"
                                 onClick={onDone} 
                                 disabled={updateMutation.isPending}
                                 variant={isPublishing ? "default" : "outline"}
-                                className={isPublishing ? "bg-primary text-primary-foreground" : ""}
                             >
                                 {isPublishing ? "Publish" : "Save"}
                             </Button>

@@ -17,7 +17,7 @@ export function UploadModal() {
             }}
         >
             <DialogContent 
-                className="max-w-4xl p-0 overflow-hidden flex flex-col h-[85vh] max-h-[850px]"
+                className="max-w-4xl p-0 overflow-hidden flex flex-col h-[85vh] max-h-[850px] rounded-2xl border border-border/50 shadow-2xl"
                 // Disable clicking outside to close so user doesn't accidentally lose draft state
                 onInteractOutside={(e) => e.preventDefault()}
                 showCloseButton={false}

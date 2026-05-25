@@ -181,10 +181,10 @@ export default function StudioCommunityPage() {
     const posts = data?.items || [];
 
     return (
-        <div className="flex flex-col h-full bg-background p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
+        <div className="flex flex-col h-full bg-background p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto space-y-6 sm:space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Community</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight mb-1">Community</h1>
                     <p className="text-muted-foreground">
                         Engage with your fans through text posts, images, and polls.
                     </p>
@@ -193,7 +193,7 @@ export default function StudioCommunityPage() {
 
             {/* Composer */}
             <Card>
-                <CardContent className="p-6 space-y-4">
+                <CardContent className="p-4 sm:p-6 space-y-4">
                     <Textarea
                         placeholder={
                             postType === "POLL"
@@ -293,8 +293,8 @@ export default function StudioCommunityPage() {
 
                     <Separator />
 
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
                             <Button
                                 variant={postType === "TEXT" ? "secondary" : "ghost"}
                                 size="sm"
@@ -324,7 +324,7 @@ export default function StudioCommunityPage() {
                         <Button
                             onClick={handlePost}
                             disabled={createMutation.isPending || isUploading}
-                            className="rounded-full font-bold px-6"
+                            className="rounded-full font-bold px-6 w-full sm:w-auto"
                         >
                             {createMutation.isPending || isUploading ? (
                                 <>
