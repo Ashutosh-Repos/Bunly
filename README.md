@@ -68,11 +68,11 @@ To ensure the user interface remains snappy even while the servers process heavy
 
 ```mermaid
 graph TD
-    Client[Web Client (React 19)] -->|Direct S3 Upload| S3[AWS S3 / MinIO]
+    Client[Web Client] -->|Direct S3 Upload| S3[AWS S3 / MinIO]
     Client -->|tRPC / Auth| Next[Next.js SSR Proxy]
     Next -->|API Calls| Fastify[Fastify Core API]
 
-    Fastify -->|Queues Video Task| BullMQ[BullMQ (Redis)]
+    Fastify -->|Queues Video Task| BullMQ[BullMQ Redis]
     Fastify -->|Streams Fast Events| RedisStreams[Redis Streams]
     Fastify -->|Standard Queries| Postgres[(PostgreSQL)]
 

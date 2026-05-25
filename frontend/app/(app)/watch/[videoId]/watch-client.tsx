@@ -377,7 +377,7 @@ export default function WatchPage({
                                         </div>
                                         <div className="w-[100px] aspect-video bg-muted/40 rounded-md shrink-0 relative overflow-hidden ring-1 ring-border/10">
                                             {v.thumbnailUrl ? (
-                                                <Image src={getMediaUrl(v.thumbnailUrl)} alt={v.title} fill className="object-cover" sizes="100px" />
+                                                <Image src={getMediaUrl(v.thumbnailUrl)} alt={v.title} fill className="object-cover" sizes="100px" unoptimized />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center">
                                                     <IconVideo size={16} className="text-muted-foreground/30" />

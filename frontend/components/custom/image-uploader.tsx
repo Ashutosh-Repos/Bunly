@@ -102,7 +102,7 @@ const ImageUpload = ({
         fileInputRef.current?.click();
     };
     return (
-        <div className={cn("relative group overflow-hidden", className)}>
+        <div className={cn("relative group overflow-hidden rounded-[inherit]", className)}>
             <input
                 type="file"
                 accept="image/*"
@@ -113,29 +113,47 @@ const ImageUpload = ({
             />
 
             {variant === "overlay" ? (
-                <div
-                    onClick={triggerUpload}
-                    className="absolute inset-0 z-50 flex items-center justify-center bg-background/0 group-hover:bg-background/60 transition-all duration-300 cursor-pointer backdrop-blur-0 group-hover:backdrop-blur-sm"
-                >
-                    {isUploading ? (
-                        <IconLoader2 className="w-8 h-8 text-primary animate-spin" />
+                <>
+                    {value ? (
+                        <Image
+                            src={getMediaUrl(value)}
+                            alt="Upload"
+                            fill
+                            className="object-cover rounded-[inherit]"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            priority={priority}
+                            unoptimized
+                        />
                     ) : (
-                        <div className="opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500 bg-background/80 backdrop-blur-xl p-4 rounded-3xl text-foreground border border-border/40 shadow-2xl">
-                            <IconPhoto className="w-6 h-6" />
+                        <div className="flex flex-col items-center justify-center w-full h-full bg-muted/30 text-muted-foreground/30 rounded-[inherit]">
+                            <IconPhoto className="w-12 h-12" />
                         </div>
                     )}
-                </div>
+                    <div
+                        onClick={triggerUpload}
+                        className="absolute inset-0 z-10 flex items-center justify-center bg-background/0 group-hover:bg-background/60 transition-all duration-300 cursor-pointer backdrop-blur-0 group-hover:backdrop-blur-sm rounded-[inherit]"
+                    >
+                        {isUploading ? (
+                            <IconLoader2 className="w-8 h-8 text-primary animate-spin" />
+                        ) : (
+                            <div className="opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500 bg-background/80 backdrop-blur-xl p-4 rounded-3xl text-foreground border border-border/40 shadow-2xl">
+                                <IconPhoto className="w-6 h-6" />
+                            </div>
+                        )}
+                    </div>
+                </>
             ) : value ? (
                 <>
                     <Image
                         src={getMediaUrl(value)}
                         alt="Upload"
                         fill
-                        className="object-cover"
+                        className="object-cover rounded-[inherit]"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         priority={priority}
+                        unoptimized
                     />
-                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center gap-3 backdrop-blur-sm">
+                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center gap-3 backdrop-blur-sm rounded-[inherit]">
                         <button
                             type="button"
                             onClick={triggerUpload}

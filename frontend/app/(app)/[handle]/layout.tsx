@@ -138,6 +138,7 @@ export default function ChannelLayout({ children, params }: ChannelLayoutProps) 
                             fill
                             className="object-cover"
                             priority
+                            unoptimized
                             sizes="100vw"
                         />
                     ) : (

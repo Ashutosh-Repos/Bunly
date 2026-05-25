@@ -105,6 +105,7 @@ export function LibraryClient() {
                                                 src={getMediaUrl(playlist.firstVideoThumbnail)}
                                                 alt={playlist.title}
                                                 fill
+                                                unoptimized
                                                 className="object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
                                         ) : (

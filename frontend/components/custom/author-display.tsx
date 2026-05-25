@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { IconCircleCheckFilled } from "@tabler/icons-react";
-import { BunlyImage } from "@/components/custom/bunly-image";
+import { getMediaUrl } from "@/lib/utils";
 
 export interface AuthorDTO {
     id: string;
@@ -21,35 +21,28 @@ export function AuthorAvatar({ author, className = "w-9 h-9", disableLink = fals
     const handleHref = author?.handle ? `/@${author.handle}` : "#";
     const nameFallback = (author?.name || "C").slice(0, 2).toUpperCase();
 
-    const Content = (
-        <Avatar className={`${className} border shadow-sm`}>
-            <BunlyImage 
-                src={author?.image} 
-                alt={author?.name ?? ""} 
-                fill 
-                className="rounded-full object-cover"
-            />
-            <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+    const avatarElement = (
+        <Avatar className={`${className} border shadow-xs`}>
+            {author?.image && (
+                <AvatarImage 
+                    src={getMediaUrl(author.image)} 
+                    alt={author.name ?? ""} 
+                    className="object-cover"
+                />
+            )}
+            <AvatarFallback className="text-[10px] font-bold bg-muted text-muted-foreground">
                 {nameFallback}
             </AvatarFallback>
         </Avatar>
     );
 
-    const FallbackContent = (
-        <div className={`${className} rounded-full bg-primary/10 flex items-center justify-center border shadow-sm`}>
-            <span className="text-primary text-[10px] font-bold">
-                {nameFallback}
-            </span>
-        </div>
-    );
-
     if (disableLink) {
-        return author?.image ? Content : FallbackContent;
+        return avatarElement;
     }
 
     return (
         <Link href={handleHref} className="shrink-0 flex">
-            {author?.image ? Content : FallbackContent}
+            {avatarElement}
         </Link>
     );
 }

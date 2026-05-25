@@ -28,10 +28,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("font-mono", jetbrainsMono.variable)}
+      className={cn("font-sans", geistSans.variable, jetbrainsMono.variable)}
       suppressHydrationWarning
     >
-      <body className={`${geistSans.variable} antialiased`}>
+      <body className="antialiased">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

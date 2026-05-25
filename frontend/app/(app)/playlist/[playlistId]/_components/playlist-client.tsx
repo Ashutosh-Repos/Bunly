@@ -27,6 +27,7 @@ export function PlaylistClient({ playlist }: { playlist: Playlist }) {
                                 alt="Playlist Cover"
                                 fill
                                 className="object-cover"
+                                unoptimized
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -102,6 +103,7 @@ export function PlaylistClient({ playlist }: { playlist: Playlist }) {
                                         fill
                                         className="object-cover"
                                         sizes="160px"
+                                        unoptimized
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">

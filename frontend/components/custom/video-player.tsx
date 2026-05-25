@@ -84,7 +84,9 @@ export function VideoPlayer({
         const playPromise = video.play();
         if (playPromise !== undefined) {
             playPromise.catch((error) => {
-                if (error.name !== "AbortError" && error.name !== "NotAllowedError") {
+                // Safe to ignore: AbortError (hot-reload), NotAllowedError (autoplay policy),
+                // NotSupportedError (source not ready yet during HLS init)
+                if (error.name !== "AbortError" && error.name !== "NotAllowedError" && error.name !== "NotSupportedError") {
                     console.error("Playback error:", error);
                 }
             });
@@ -95,13 +97,18 @@ export function VideoPlayer({
     const computedChapters = React.useMemo(() => {
         if (!chapters || chapters.length === 0 || duration === 0) return null;
         
-        const sorted = [...chapters].sort((a, b) => a.startTime - b.startTime);
+        // Filter out chapters that start at or beyond the video duration
+        const validChapters = chapters.filter(c => c.startTime < duration);
+        if (validChapters.length === 0) return null;
+
+        const sorted = [...validChapters].sort((a, b) => a.startTime - b.startTime);
         if (sorted[0].startTime > 0) {
             sorted.unshift({ title: "Intro", startTime: 0 });
         }
 
         return sorted.map((chapter, i) => {
-            const nextChapterTime = sorted[i + 1]?.startTime ?? duration;
+            // Clamp the end time to the video duration
+            const nextChapterTime = Math.min(sorted[i + 1]?.startTime ?? duration, duration);
             const segmentDuration = Math.max(0, nextChapterTime - chapter.startTime);
             const widthPercent = (segmentDuration / duration) * 100;
             
@@ -395,10 +402,11 @@ export function VideoPlayer({
         if (video.paused) { safePlay(); } else { video.pause(); }
     };
 
-    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleProgressSeek = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (!videoRef.current || !duration) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         videoRef.current.currentTime = pos * duration;
     };
 
@@ -467,11 +475,13 @@ export function VideoPlayer({
                 <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
                 <div className="relative pointer-events-auto px-4 pb-4 flex flex-col gap-2">
-                    {/* Progress bar with seek preview */}
+                    {/* Progress bar — padding creates the touch target, bar is the visual */}
                     <div
                         ref={progressBarRef}
-                        className="relative w-full h-1.5 flex gap-[2px] cursor-pointer hover:h-2.5 transition-all group/progress"
-                        onClick={handleProgressClick}
+                        className="relative w-full h-1.5 flex gap-[2px] cursor-pointer hover:h-2.5 active:h-2.5 transition-all group/progress"
+                        style={{ padding: '10px 0', margin: '-10px 0', boxSizing: 'content-box' }}
+                        onClick={(e) => { e.stopPropagation(); handleProgressSeek(e); }}
+                        onTouchStart={(e) => { e.stopPropagation(); handleProgressSeek(e); }}
                         onMouseMove={handleProgressHover}
                         onMouseLeave={() => { setHoverTime(null); setHoverThumb(null); setHoverChapter(null); }}
                     >
@@ -500,12 +510,12 @@ export function VideoPlayer({
                                     >
                                         {/* Buffer bar */}
                                         <div 
-                                            className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150"
+                                            className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150 pointer-events-none"
                                             style={{ width: `${Math.max(0, Math.min(100, bufferFillPercent))}%` }}
                                         />
                                         {/* Played bar */}
                                         <div 
-                                            className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75"
+                                            className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75 pointer-events-none"
                                             style={{ width: `${Math.max(0, Math.min(100, fillPercent))}%` }}
                                         />
                                     </div>
@@ -513,13 +523,13 @@ export function VideoPlayer({
                             })
                         ) : (
                             <div className="relative w-full h-full bg-white/20 rounded-full overflow-hidden">
-                                {/* FIX: Buffer progress bar */}
+                                {/* Buffer progress bar */}
                                 <div
-                                    className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150"
+                                    className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-150 pointer-events-none"
                                     style={{ width: `${bufferPercent}%` }}
                                 />
                                 <div
-                                    className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75"
+                                    className="absolute top-0 left-0 h-full bg-red-600 transition-all duration-75 pointer-events-none"
                                     style={{ width: `${duration ? Math.min(100, (progress / duration) * 100) : 0}%` }}
                                 />
                             </div>
@@ -528,7 +538,7 @@ export function VideoPlayer({
                         {/* Seek preview tooltip */}
                         {hoverTime !== null && (
                             <div
-                                className="absolute bottom-4 flex flex-col items-center gap-1 pointer-events-none"
+                                className="absolute bottom-full mb-2 flex flex-col items-center gap-1 pointer-events-none"
                                 style={{ left: `${hoverX}px`, transform: "translateX(-50%)" }}
                             >
                                 {hoverThumb && (
