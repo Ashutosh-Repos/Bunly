@@ -1,0 +1,270 @@
+import redis from "../lib/redis.js";
+
+export class StreamService {
+    /**
+     * Add a view item to the "Fast Lane" buffer.
+     * Uses HyperLogLog for unique counts and Atomic Counters for total views.
+     */
+    static async addViewItem(videoId: string, ip: string, userAgent: string) {
+        try {
+            // 1. Check uniqueness using standard Expiry Token
+            const lockKey = `view_lock:${videoId}:${ip}`;
+            const isNew = await redis.set(lockKey, "1", "EX", 43200, "NX");
+
+            if (isNew) {
+                // 2. Increment buffer (Hash + Dirty Set)
+                const pipeline = redis.pipeline();
+                pipeline.hincrby("video:v:buf", videoId, 1);
+                pipeline.sadd("video:v:dirty", videoId);
+                await pipeline.exec();
+            }
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to add view for ${videoId}:`, error);
+            // Resilience: Continue without view count update
+        }
+    }
+
+    /**
+     * Add a history item to the "Reliable Lane" stream.
+     * Uses Redis Streams to queue updates for the background worker.
+     * Also updates the "Session" cache for immediate read access (Hybrid Read).
+     */
+    static async addHistoryItem(
+        userId: string,
+        videoId: string,
+        seconds: number,
+    ) {
+        try {
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
+
+            // 1. Update Session Cache (Hybrid Read)
+            const sessionKey = `session:${userId}:${videoId}`;
+            pipeline.set(
+                sessionKey,
+                JSON.stringify({
+                    watchedSeconds: seconds,
+                    lastWatchedAt: new Date(timestamp).toISOString(),
+                }),
+                "EX",
+                86400,
+            ); // 1 day TTL
+
+            // 2. Push to Stream (Write-Behind)
+            pipeline.xadd(
+                "queue:history",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    userId,
+                    videoId,
+                    seconds,
+                    timestamp,
+                }),
+            );
+
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to track history for ${userId} on ${videoId}:`, error);
+            // Resilience: Core flow continues
+        }
+    }
+
+    /**
+     * Get merged history for Hybrid Read-Repair.
+     * Combines DB history with active Redis session data.
+     */
+    static async getMergedHistory(
+        userId: string,
+        videoId: string,
+        dbHistory: { watchedSeconds: number; lastWatchedAt: Date } | null,
+    ) {
+        const sessionKey = `session:${userId}:${videoId}`;
+        const sessionData = await redis.get(sessionKey);
+
+        let merged = dbHistory ? { ...dbHistory } : null;
+
+        if (sessionData) {
+            try {
+                const session = JSON.parse(sessionData);
+                const sessionSeconds = Number(session.watchedSeconds);
+                const sessionDate = new Date(session.lastWatchedAt);
+
+                if (!merged) {
+                    merged = {
+                        watchedSeconds: sessionSeconds,
+                        lastWatchedAt: sessionDate,
+                    };
+                } else {
+                    // Hybrid Merge: Take the one with later timestamp or higher seconds
+                    if (
+                        sessionDate > merged.lastWatchedAt ||
+                        sessionSeconds > merged.watchedSeconds
+                    ) {
+                        merged.watchedSeconds = Math.max(
+                            merged.watchedSeconds,
+                            sessionSeconds,
+                        );
+                        merged.lastWatchedAt =
+                            sessionDate > merged.lastWatchedAt
+                                ? sessionDate
+                                : merged.lastWatchedAt;
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to parse session data", e);
+            }
+        }
+
+        return merged;
+    }
+    /**
+     * Clear session cache for a specific video.
+     * Called when removing a video from history.
+     */
+    static async clearSession(userId: string, videoId: string) {
+        const sessionKey = `session:${userId}:${videoId}`;
+        await redis.del(sessionKey);
+    }
+
+    /**
+     * Clear all session caches for a user.
+     * Called when clearing all history.
+     * Uses SCAN to find and delete keys iteratively to avoid blocking.
+     */
+    static async clearAllSessions(userId: string) {
+        const match = `session:${userId}:*`;
+        let cursor = "0";
+
+        do {
+            const [nextCursor, keys] = await redis.scan(
+                cursor,
+                "MATCH",
+                match,
+                "COUNT",
+                100,
+            );
+            cursor = nextCursor;
+
+            if (keys.length > 0) {
+                await redis.del(...keys);
+            }
+        } while (cursor !== "0");
+    }
+    /**
+     * Add a reaction (Like/Dislike) to the stream.
+     * 1. Updates User Cache (Fast Lane Read) - TTL 24h
+     * 2. Pushes to Redis Stream (Write Behind)
+     */
+    static async addReaction(
+        userId: string,
+        videoId: string,
+        type: "LIKE" | "DISLIKE" | "REMOVE",
+    ) {
+        try {
+            const reactionKey = `user:reaction:${userId}:${videoId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
+
+            // 1. Update User Cache (Read-Your-Own-Write)
+            if (type === "REMOVE") {
+                pipeline.set(reactionKey, "REMOVE", "EX", 86400);
+            } else {
+                pipeline.set(reactionKey, type, "EX", 86400);
+            }
+
+            // 2. Push to Stream
+            pipeline.xadd(
+                "queue:engagement",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    userId,
+                    videoId,
+                    type,
+                    timestamp,
+                }),
+            );
+
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to record reaction for ${userId}:`, error);
+        }
+    }
+
+    /**
+     * Get user's current reaction from Cache.
+     * Used for Hybrid Read.
+     */
+    static async getUserReaction(userId: string, videoId: string) {
+        try {
+            const reactionKey = `user:reaction:${userId}:${videoId}`;
+            const cached = await redis.get(reactionKey);
+            return cached as "LIKE" | "DISLIKE" | "REMOVE" | null;
+        } catch (e) {
+            console.warn("Failed to get user reaction from cache", e);
+            return null; // Fallback to DB
+        }
+    }
+
+    /**
+     * Add a subscription action to the stream.
+     * 1. Updates Cache (Fast Lane Read) - TTL 30 days
+     * 2. Pushes to Redis Stream (Write Behind)
+     */
+    static async addSubscription(
+        subscriberId: string,
+        channelId: string,
+        action: "SUBSCRIBE" | "UNSUBSCRIBE"
+    ) {
+        try {
+            const subKey = `user:subscription:${subscriberId}:${channelId}`;
+            const timestamp = Date.now();
+            const pipeline = redis.pipeline();
+
+            // 1. Update User Cache for immediate UI feedback.
+            pipeline.set(subKey, action, "EX", 2592000); // 30 days
+
+            // 2. Push to Stream for the worker
+            pipeline.xadd(
+                "queue:subscriptions",
+                "MAXLEN",
+                "~",
+                1000000,
+                "*",
+                "data",
+                JSON.stringify({
+                    subscriberId,
+                    channelId,
+                    action,
+                    timestamp,
+                }),
+            );
+
+            await pipeline.exec();
+        } catch (error) {
+            console.error(`[StreamService] ⚠️ Failed to record subscription for ${subscriberId}:`, error);
+        }
+    }
+
+    /**
+     * Get user's current subscription status from Cache.
+     * Returns "SUBSCRIBE" | "UNSUBSCRIBE" | null (if not in cache).
+     */
+    static async getSubscriptionStatus(subscriberId: string, channelId: string) {
+        try {
+            const subKey = `user:subscription:${subscriberId}:${channelId}`;
+            const cached = await redis.get(subKey);
+            return cached as "SUBSCRIBE" | "UNSUBSCRIBE" | null;
+        } catch (e) {
+            console.warn("Failed to get subscription from cache", e);
+            return null;
+        }
+    }
+}

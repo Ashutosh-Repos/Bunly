@@ -1,0 +1,11 @@
+node_modules
+.env
+.env.*
+dist
+.git
+.gitignore
+.DS_Store
+*.seed
+*.log
+README.md
+# We must NOT ignore package.json or pnpm-lock.yaml because Docker needs them for the COPY steps!
